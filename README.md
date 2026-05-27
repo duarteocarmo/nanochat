@@ -3,6 +3,7 @@
 ## EU-PT Version 
 
 - [x] Add Bagaço dataset loading/repackaging into nanochat’s expected parquet format.
+- [x] Add portuguese text to tokenizer eval
 - [ ] Train a PT-PT tokenizer on Bagaço.
 - [ ] Add Portuguese tokenizer eval examples and compression reporting.
 - [ ] Run tiny PT pretraining on CPU/MPS with CORE disabled.
