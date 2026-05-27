@@ -1,0 +1,3 @@
+- this is a fork of the https://github.com/karpathy/nanochat repo
+- the focus is to train a fully european portuguese LLM on a budget - by adapting
+- every time we commit, we add a small not of the main changes we have made (not super verbose, the important ones)

@@ -4,6 +4,12 @@ A running summary documenting some experiments and findings. Started ~Jan 7 2026
 
 ---
 
+## 2026-05-27: European Portuguese Bagaço2 setup
+
+Added the first local tooling for a European Portuguese nanochat fork: Bagaço2 repackaging support, GPT-2 token estimation for Bagaço2, a PT CPU/MPS run scaffold, and a README TODO list for the remaining tokenizer, pretraining, SFT, and eval work.
+
+---
+
 ## 2026-05-05: DyT for d12 pretraining (negative)
 
 Tried replacing normalization with [DyT](https://arxiv.org/abs/2503.10622) for d12-scale pretraining following some [hype](https://x.com/LodestoneRock/status/2050367217087512953) on X.

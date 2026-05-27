@@ -1,5 +1,26 @@
 # nanochat
 
+## EU-PT Version 
+
+- [x] Add Bagaço dataset loading/repackaging into nanochat’s expected parquet format.
+- [ ] Train a PT-PT tokenizer on Bagaço.
+- [ ] Add Portuguese tokenizer eval examples and compression reporting.
+- [ ] Run tiny PT pretraining on CPU/MPS with CORE disabled.
+- [ ] Add Portuguese base-model sample prompts.
+- [ ] Create a minimal PT-PT `customjson` SFT dataset.
+- [ ] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
+- [ ] Adapt SFT to run PT-only without default English datasets.
+- [ ] Run tiny PT SFT on CPU/MPS.
+- [ ] Test PT chat via `chat_cli`.
+- [ ] Create one end-to-end `runs/runptcpu.sh` script.
+- [ ] Verify fresh local CPU/MPS run completes end-to-end.
+- [ ] Estimate model sizes for depth/vocab options.
+- [ ] Estimate usable Bagaço token budget.
+- [ ] Sketch first real `$200` training config.
+- [ ] Plan future EuroEval integration.
+- [ ] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
+- [ ] Plan future PT/EN data-mix ablations.
+
 ![nanochat logo](dev/nanochat.png)
 ![scaling laws](dev/scaling_laws_jan26.png)
 

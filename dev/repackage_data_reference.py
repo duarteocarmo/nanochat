@@ -1,3 +1,13 @@
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "datasets",
+#     "huggingface_hub",
+#     "pyarrow",
+#     "tiktoken",
+# ]
+# ///
 """
 Repackage a given dataset into simple parquet shards:
 
@@ -28,11 +38,17 @@ import time
 
 from datasets import load_dataset
 import pyarrow.parquet as pq
-import pyarrow as pa
+import pyarrow as pa    
+
+
+# required now
+HF_TOKEN = os.getenv("HF_TOKEN")
+assert HF_TOKEN is not None, "Please set the HF_TOKEN environment variable"
 
 # You can change these:
-dataset_tag = "climbmix"
+dataset_tag = "bagaco2"
 upload_to_hf = True
+metadata_column_names = []
 
 # Dataset configurations:
 if dataset_tag == "fineweb_edu":
@@ -57,6 +73,18 @@ elif dataset_tag == "climbmix":
     tokenizer = tiktoken.encoding_for_model("gpt-2")
     upload_tag = "climbmix-400b-shuffle"
 
+elif dataset_tag == "bagaco2":
+    dataset_kwargs = {
+        "path": "duarteocarmo/fineweb2-bagaco2",
+        "split": "train",
+        "data_files": "fineweb2-ptpt-prototype/*.parquet",
+    }
+    output_dirname = "bagaco2"
+    data_column_name = "text"
+    metadata_column_names = ["educational_score", "category"]
+    tokenizer = None
+    upload_tag = "bagaco2-30b-shuffle"
+
 else:
     raise ValueError(f"Unknown dataset tag: {dataset_tag}")
 
@@ -75,7 +103,7 @@ os.makedirs(output_dir, exist_ok=True)
 # Write to parquet files
 chars_per_shard = 250_000_000
 row_group_size = 1024 # HF uses 1000 but we use multiple of 2, nicer for distributed data loader later
-shard_docs = []
+shard_data = {"text": []} | {column_name: [] for column_name in metadata_column_names}
 shard_index = 0
 shard_characters = 0
 total_docs_processed = 0
@@ -84,13 +112,15 @@ t0 = time.time()
 for doc in ds:
     data = doc[data_column_name]
     text = tokenizer.decode(data) if tokenizer is not None else data
-    shard_docs.append(text)
+    shard_data["text"].append(text)
+    for column_name in metadata_column_names:
+        shard_data[column_name].append(doc[column_name])
     shard_characters += len(text)
     collected_enough_chars = shard_characters >= chars_per_shard
-    docs_multiple_of_row_group_size = len(shard_docs) % row_group_size == 0
+    docs_multiple_of_row_group_size = len(shard_data["text"]) % row_group_size == 0
     if collected_enough_chars and docs_multiple_of_row_group_size: # leads to ~100MB of text (compressed)
         shard_path = os.path.join(output_dir, f"shard_{shard_index:05d}.parquet")
-        shard_table = pa.Table.from_pydict({"text": shard_docs})
+        shard_table = pa.Table.from_pydict(shard_data)
         pq.write_table(
             shard_table,
             shard_path,
@@ -103,24 +133,23 @@ for doc in ds:
         t1 = time.time()
         dt = t1 - t0 # for this shard alone
         t0 = t1
-        total_docs_processed += len(shard_docs)
+        total_docs_processed += len(shard_data["text"])
         total_time_spent += dt
         remaining_docs = ndocs - total_docs_processed
         avg_time_per_doc = total_time_spent / total_docs_processed
         remaining_time = remaining_docs * avg_time_per_doc
         remaining_time_hours = remaining_time / 3600
-        print(f"Wrote {shard_path}. #documents: {len(shard_docs)} | #characters: {shard_characters} | time: {dt:.2f}s | remaining time: {remaining_time_hours:.2f}h")
-        shard_docs = []
+        print(f"Wrote {shard_path}. #documents: {len(shard_data['text'])} | #characters: {shard_characters} | time: {dt:.2f}s | remaining time: {remaining_time_hours:.2f}h")
+        shard_data = {"text": []} | {column_name: [] for column_name in metadata_column_names}
         shard_characters = 0
         shard_index += 1
 
 # Demonstration of how the data was later uploaded to HuggingFace
 if upload_to_hf:
     from huggingface_hub import HfApi
-    token = os.getenv("HF_TOKEN")
-    api = HfApi(token=token)
+    api = HfApi(token=HF_TOKEN)
     api.upload_large_folder(
         folder_path=output_dir,
-        repo_id=f"karpathy/{upload_tag}",
+        repo_id=f"duarteocarmo/{upload_tag}",
         repo_type="dataset",
     )
