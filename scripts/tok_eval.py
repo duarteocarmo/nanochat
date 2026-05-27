@@ -29,6 +29,26 @@ Herald Korea Times
 **모든 쟁점에 대해 ‘무엇이 쟁점인지’, ‘누가 무엇을 주장하는지’, ‘사실은 무엇인지’**를 명확히 전달하는 데 집중합니다.
 """.strip()
 
+# Random Portuguese text
+portuguese_text = r"""
+Quando está muito calor e toda a gente corre para as praias, gosto de seguir pelo
+caminho contrário.
+Gosto de me precipitar pela metade desimpedida da estrada, estrangulando o desejo
+cruel de dizer adeus aos motoristas engarrafados. Vou a caminho dos lugares que
+ficaram vazios.
+Finjo que é o interior, mas para fingir, é preciso a ajuda de um bocadinho de
+verdade.
+Litoral já não é. Mas vê-se bem o mar ao longe: uma visão bem bonita, que me faz
+lembrar as nossas ilhas atlânticas.
+Finjo que Portugal é um país mais quente do que eu pensava: é questão de me
+habituar. Faço o que fazem os habitantes: paro quieto, abro o meu jornal, tento fazer
+render cada página, deixo arrefecer o café, que não presta, mas não faz mal, porque
+o que interessa não é o que engulo, mas o que me rodeia.
+Portugal é um país de pouca gente e é com pouca gente que está bem. E é bonito.
+As nacionalidades não interessam: quanto mais variadas, melhor. Não são os
+estrangeiros que assustam: são as multidões.
+"""
+
 # Random piece of code
 code_text = r"""
 class BasicTokenizer(Tokenizer):
@@ -152,6 +172,7 @@ val_text = "\n".join(val_docs)
 all_text = [
     ("news", news_text),
     ("korean", korean_text),
+    ("portuguese", portuguese_text),
     ("code", code_text),
     ("math", math_text),
     ("science", science_text),
