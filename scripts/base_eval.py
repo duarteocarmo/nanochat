@@ -228,13 +228,13 @@ def main():
         print0("="*80)
         if ddp_rank == 0:
             prompts = [
-                "The capital of France is",
-                "The chemical symbol of gold is",
-                "If yesterday was Friday, then tomorrow will be",
-                "The opposite of hot is",
-                "The planets of the solar system are:",
-                "My favorite color is",
-                "If 5*x + 3 = 13, then x is",
+                "Portugal é um país",
+                "Lisboa é conhecida por",
+                "No norte de Portugal,",
+                "Durante o verão,",
+                "A língua portuguesa",
+                "Nos últimos anos,",
+                "A gastronomia portuguesa",
             ]
             engine = Engine(model, tokenizer)
             print0("\nConditioned samples:")

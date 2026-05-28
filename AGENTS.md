@@ -1,3 +1,4 @@
 - this is a fork of the https://github.com/karpathy/nanochat repo
 - the focus is to train a fully european portuguese LLM on a budget - by adapting
-- every time we commit, we add a small note of the main changes we have made (not super verbose, the important ones) in notes.md
+- to commit a change - add the files, make a "update" commit message - and a short summary of the change in notes.md
+- the todos are in the README.md

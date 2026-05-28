@@ -457,13 +457,13 @@ while True:
     if args.sample_every > 0 and master_process and (last_step or (step > 0 and step % args.sample_every == 0)):
         model.eval()
         prompts = [
-            "The capital of France is",
-            "The chemical symbol of gold is",
-            "If yesterday was Friday, then tomorrow will be",
-            "The opposite of hot is",
-            "The planets of the solar system are:",
-            "My favorite color is",
-            "If 5*x + 3 = 13, then x is",
+            "Portugal é um país",
+            "Lisboa é conhecida por",
+            "No norte de Portugal,",
+            "Durante o verão,",
+            "A língua portuguesa",
+            "Nos últimos anos,",
+            "A gastronomia portuguesa",
         ]
         engine = Engine(orig_model, tokenizer) # use orig_model to avoid recompilation
         for prompt in prompts:

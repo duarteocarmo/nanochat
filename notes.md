@@ -11,3 +11,10 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 - Added `runs/runcpu-pt.sh` as an initial CPU/MPS scaffold for the Portuguese end-to-end run.
 - Added the European Portuguese project TODO list to `README.md`.
 - Added a short entry in `dev/LOG.md` for the Bagaço2/PT setup work.
+
+## 2026-05-28: Portuguese tokenizer and CPU run updates
+
+- Pointed the base dataset loader at the Bagaço2 shuffled shards.
+- Enabled tokenizer training/eval and tiny PT pretraining in `runs/runcpu-pt.sh`, with CORE disabled for training and base eval.
+- Replaced base-model sample prompts with 7 general European Portuguese prompts.
+- Updated README TODOs for completed tokenizer work and Portuguese sample prompts.

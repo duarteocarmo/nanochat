@@ -4,10 +4,10 @@
 
 - [x] Add Bagaço dataset loading/repackaging into nanochat’s expected parquet format.
 - [x] Add portuguese text to tokenizer eval
-- [ ] Train a PT-PT tokenizer on Bagaço.
-- [ ] Add Portuguese tokenizer eval examples and compression reporting.
+- [x] Train a PT-PT tokenizer on Bagaço.
+- [x] Add Portuguese tokenizer eval examples and compression reporting.
 - [ ] Run tiny PT pretraining on CPU/MPS with CORE disabled.
-- [ ] Add Portuguese base-model sample prompts.
+- [x] Add Portuguese base-model sample prompts.
 - [ ] Create a minimal PT-PT `customjson` SFT dataset.
 - [ ] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
 - [ ] Adapt SFT to run PT-only without default English datasets.
