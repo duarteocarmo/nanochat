@@ -12,8 +12,11 @@
 
 import argparse
 import json
+import random
 import shutil
 import time
+import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import islice
 from pathlib import Path
@@ -32,6 +35,7 @@ DEFAULT_ENDPOINT = "http://127.0.0.1:18000/v1/chat/completions"
 DEFAULT_MODEL = "translategemma-12b-it"
 DEFAULT_OUTPUT_DIR = "datasets/smoltalk2-everyday-conversations-no-think-pt-pt"
 DEFAULT_HUB_DATASET = "duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt"
+DATASETS_SERVER_ROWS_ENDPOINT = "https://datasets-server.huggingface.co/rows"
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +53,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", default="en")
     parser.add_argument("--target", default="pt-PT")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--sample-size", type=int, default=None)
+    parser.add_argument("--sample-seed", type=int, default=42)
+    parser.add_argument("--sample-page-size", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--max-workers", type=int, default=64)
@@ -256,6 +263,69 @@ def push_checkpoint(
     print(f"pushed {completed_rows:,} rows to {hub_dataset}")
 
 
+def sample_indices_for(*, total_rows: int, sample_size: int, seed: int) -> list[int]:
+    selected_rows = min(sample_size, total_rows)
+    return sorted(random.Random(seed).sample(range(total_rows), selected_rows))
+
+
+def fetch_dataset_rows_page(
+    *, dataset: str, config: str, split: str, offset: int, length: int
+) -> dict[str, Any]:
+    query = urllib.parse.urlencode(
+        {
+            "dataset": dataset,
+            "config": config,
+            "split": split,
+            "offset": offset,
+            "length": length,
+        }
+    )
+    url = f"{DATASETS_SERVER_ROWS_ENDPOINT}?{query}"
+    with urllib.request.urlopen(url=url, timeout=120) as response:
+        return json.load(response)
+
+
+def iter_sampled_rows(*, args: argparse.Namespace, start_index: int) -> Iterator[dict[str, Any]]:
+    first_page = fetch_dataset_rows_page(
+        dataset=args.dataset,
+        config=args.config,
+        split=args.split,
+        offset=0,
+        length=1,
+    )
+    target_rows = requested_row_count(args=args) or args.sample_size
+    indices = sample_indices_for(
+        total_rows=first_page["num_rows_total"],
+        sample_size=target_rows,
+        seed=args.sample_seed,
+    )
+    page_size = args.sample_page_size
+    rows_yielded = 0
+    current_page_start = None
+    current_rows_by_index: dict[int, dict[str, Any]] = {}
+
+    for sample_index, row_index in enumerate(indices):
+        if sample_index < start_index:
+            continue
+        page_start = row_index // page_size * page_size
+        if page_start != current_page_start:
+            page = fetch_dataset_rows_page(
+                dataset=args.dataset,
+                config=args.config,
+                split=args.split,
+                offset=page_start,
+                length=page_size,
+            )
+            current_page_start = page_start
+            current_rows_by_index = {
+                row["row_idx"]: row["row"] for row in page["rows"]
+            }
+        yield dict(current_rows_by_index[row_index])
+        rows_yielded += 1
+        if rows_yielded >= target_rows - start_index:
+            break
+
+
 def worker_candidates_for(*, raw_candidates: str, max_workers: int) -> list[int]:
     candidates = []
     for raw_candidate in raw_candidates.split(","):
@@ -276,6 +346,10 @@ def load_streaming_rows(
 def iter_streaming_rows(
     *, args: argparse.Namespace, start_index: int = 0
 ) -> Iterator[dict[str, Any]]:
+    if args.sample_size is not None:
+        yield from iter_sampled_rows(args=args, start_index=start_index)
+        return
+
     dataset = load_dataset(
         path=args.dataset,
         name=args.config,
@@ -283,10 +357,10 @@ def iter_streaming_rows(
         streaming=True,
     )
     for index, row in enumerate(dataset):
-        if index < start_index:
-            continue
         if args.limit is not None and index >= args.limit:
             break
+        if index < start_index:
+            continue
         yield dict(row)
 
 
@@ -456,6 +530,17 @@ def translate_remaining(
         )
 
 
+def requested_row_count(*, args: argparse.Namespace) -> int | None:
+    row_counts = [
+        row_count
+        for row_count in [args.limit, args.sample_size]
+        if row_count is not None
+    ]
+    if not row_counts:
+        return None
+    return min(row_counts)
+
+
 def prepare_output(*, args: argparse.Namespace, output_path: Path) -> int:
     if args.overwrite and output_path.exists():
         output_path.unlink()
@@ -477,13 +562,14 @@ def main() -> None:
     if args.check_only:
         return
 
+    target_rows = requested_row_count(args=args)
     start_index = prepare_output(args=args, output_path=output_path)
-    if args.limit is not None and start_index > args.limit:
+    if target_rows is not None and start_index > target_rows:
         raise ValueError(
-            f"{output_path} has {start_index} rows, but --limit is {args.limit}"
+            f"{output_path} has {start_index} rows, but target row count is {target_rows}"
         )
-    if args.limit is not None and start_index == args.limit:
-        print(f"already translated {args.limit:,} rows")
+    if target_rows is not None and start_index == target_rows:
+        print(f"already translated {target_rows:,} rows")
         return
 
     rows = iter_streaming_rows(args=args, start_index=start_index)

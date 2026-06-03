@@ -18,3 +18,9 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 - Enabled tokenizer training/eval and tiny PT pretraining in `runs/runcpu-pt.sh`, with CORE disabled for training and base eval.
 - Replaced base-model sample prompts with 7 general European Portuguese prompts.
 - Updated README TODOs for completed tokenizer work and Portuguese sample prompts.
+
+## 2026-06-03: Magpie sampling support
+
+- Added deterministic `--sample-size` / `--sample-seed` support to `dev/translate_dataset.py` for translating a limited SmolTalk2 Magpie subset instead of the full split.
+- Sampled rows are fetched through the Hugging Face datasets-server rows API, avoiding a full local dataset download before translation starts.
+- Added tests for deterministic sampling, paged row fetching, resume, and `--limit` interaction.
