@@ -29,6 +29,39 @@ nanochat is the simplest experimental harness for training LLMs. It is designed 
 
 For questions about the repo, I recommend either using [DeepWiki](https://deepwiki.com/karpathy/nanochat) from Devin/Cognition to ask questions about the repo, or use the [Discussions tab](https://github.com/karpathy/nanochat/discussions), or come by the [#nanochat](https://discord.com/channels/1020383067459821711/1427295580895314031) channel on Discord.
 
+## Dataset adaption 
+
+### SFT
+
+Target a compact first PT-PT SFT mix of about 80k-130k conversations. Keep it simple:
+no thinking traces, no tool calls, and preserve the `messages` format expected by
+`scripts/chat_sft.py`.
+
+| Priority | SmolTalk2 split | Rows | Notes |
+|---|---|---:|---|
+| Now | `smoltalk_smollm3_everyday_conversations_no_think` | 2.3k | `duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt`. |
+| Now | `smoltalk_smollm3_smol_magpie_ultra_no_think` | 30k-50k sample | Broad general instruction coverage; sample first instead of translating all 406k rows. |
+| Now | `tulu_3_sft_personas_instruction_following_no_think` | 30k | Constraint and instruction-following coverage. |
+| Now | `smoltalk_smollm3_smol_rewrite_no_think` | 25k-53k | Rewrite and editing behaviour. |
+| Later | `smoltalk_smollm3_smol_summarize_no_think` | 20k-50k sample | Useful summarisation behaviour; handle `custom_instructions` correctly. |
+| Later | `smoltalk_multilingual_8languages_lang_5_no_think` | 25k-50k sample | Already Portuguese-ish, but needs PT-PT filtering/normalisation before use. |
+
+### PTCORE
+
+Start with cheap multiple-choice or classification tasks, then add brittle generative
+tasks later as diagnostics.
+
+| Priority | EuroEval dataset | Task | Notes |
+|---|---|---|---|
+| Now | `sst2-pt` | Sentiment classification | Fast binary task with a clear random baseline. |
+| Now | `scala-pt` | Linguistic acceptability | Good European Portuguese grammar signal. |
+| Now | `mmlu-pt` | Knowledge | Broad 4-way multiple-choice coverage. |
+| Now | `goldenswag-pt` | Common-sense reasoning | 4-way multiple-choice reasoning signal. |
+| Later | `multi-wiki-qa-pt` | Reading comprehension | Strong PT-PT task, but short-answer scoring is harsher/noisier. |
+| Later | `boolq-pt` | Reading comprehension | Useful auxiliary yes/no task, but EuroEval marks it unofficial. |
+| Later | `harem` | Named entity recognition | Valuable PT-origin data, but JSON/entity scoring is brittle. |
+| Later | `publico` | Summarisation | Real Portuguese news summarisation, but slower and noisier for a 250M base model. |
+
 ## Time-to-GPT-2 Leaderboard
 
 Presently, the main focus of development is on tuning the pretraining stage, which takes the most amount of compute. Inspired by the modded-nanogpt repo and to incentivise progress and community collaboration, nanochat maintains a leaderboard for a "GPT-2 speedrun", which is the wall-clock time required to train a nanochat model to GPT-2 grade capability, as measured by the DCLM CORE score. The [runs/speedrun.sh](runs/speedrun.sh) script always reflects the reference way to train GPT-2 grade model and talk to it. The current leaderboard looks as follows:

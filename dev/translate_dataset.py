@@ -1,0 +1,522 @@
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "datasets>=4.0.0",
+#     "httpx>=0.28.0",
+#     "polars>=1.0.0",
+#     "pyarrow>=18.0.0",
+#     "tqdm>=4.66.0",
+# ]
+# ///
+
+import argparse
+import json
+import shutil
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import islice
+from pathlib import Path
+from typing import Any, Iterator
+
+import httpx
+import polars
+from datasets import DatasetDict, load_dataset
+from tqdm import tqdm
+
+
+DATASET_NAME = "HuggingFaceTB/smoltalk2"
+DATASET_CONFIG = "SFT"
+DATASET_SPLIT = "smoltalk_smollm3_everyday_conversations_no_think"
+DEFAULT_ENDPOINT = "http://127.0.0.1:18000/v1/chat/completions"
+DEFAULT_MODEL = "translategemma-12b-it"
+DEFAULT_OUTPUT_DIR = "datasets/smoltalk2-everyday-conversations-no-think-pt-pt"
+DEFAULT_HUB_DATASET = "duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Translate SmolTalk2 everyday conversations to pt-PT with local vLLM.",
+    )
+    parser.add_argument("--dataset", default=DATASET_NAME)
+    parser.add_argument("--config", default=DATASET_CONFIG)
+    parser.add_argument("--split", default=DATASET_SPLIT)
+    parser.add_argument("--output-split", default=DATASET_SPLIT)
+    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--hub-dataset", default=DEFAULT_HUB_DATASET)
+    parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--source", default="en")
+    parser.add_argument("--target", default="pt-PT")
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--workers", type=int, default=0)
+    parser.add_argument("--max-workers", type=int, default=64)
+    parser.add_argument("--worker-candidates", default="4,8,16,32,64")
+    parser.add_argument("--warmup-rows", type=int, default=16)
+    parser.add_argument("--push-every", type=int, default=1_000)
+    parser.add_argument("--max-tokens", type=int, default=512)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument("--retries", type=int, default=5)
+    parser.add_argument("--check-examples", type=int, default=20)
+    parser.add_argument("--check-only", action="store_true")
+    parser.add_argument("--no-push", action="store_true")
+    parser.add_argument("--private", action="store_true")
+    parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--overwrite", action="store_true")
+    return parser.parse_args()
+
+
+def count_jsonl_rows(*, path: Path) -> int:
+    if not path.exists():
+        return 0
+    with path.open(encoding="utf-8") as file:
+        return sum(1 for _ in file)
+
+
+def prompt_for(*, text: str, source: str, target: str) -> str:
+    return f"<<<source>>>{source}<<<target>>>{target}<<<text>>>{text}"
+
+
+def translate_text(
+    *,
+    client: httpx.Client,
+    endpoint: str,
+    model: str,
+    text: str,
+    source: str,
+    target: str,
+    max_tokens: int,
+    temperature: float,
+    retries: int,
+) -> str:
+    if not text.strip():
+        return text
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt_for(text=text, source=source, target=target),
+            }
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+
+    last_error = None
+    for attempt in range(retries):
+        try:
+            response = client.post(url=endpoint, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError) as error:
+            last_error = error
+            time.sleep(2**attempt)
+
+    raise RuntimeError(f"Translation failed after {retries} retries: {last_error}")
+
+
+def translate_row(
+    *,
+    client: httpx.Client,
+    endpoint: str,
+    model: str,
+    row: dict[str, Any],
+    source: str,
+    target: str,
+    max_tokens: int,
+    temperature: float,
+    retries: int,
+) -> dict[str, Any]:
+    translated_messages = []
+    for message in row["messages"]:
+        translated_message = dict(message)
+        translated_message["content"] = translate_text(
+            client=client,
+            endpoint=endpoint,
+            model=model,
+            text=message["content"],
+            source=source,
+            target=target,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            retries=retries,
+        )
+        translated_messages.append(translated_message)
+
+    return {
+        **row,
+        "messages": translated_messages,
+    }
+
+
+def translate_rows(
+    *,
+    rows: list[dict[str, Any]],
+    client: httpx.Client,
+    endpoint: str,
+    model: str,
+    source: str,
+    target: str,
+    max_tokens: int,
+    temperature: float,
+    retries: int,
+    workers: int,
+    desc: str,
+) -> tuple[list[dict[str, Any]], float]:
+    started_at = time.monotonic()
+    translated_rows: list[dict[str, Any] | None] = [None] * len(rows)
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(
+                translate_row,
+                client=client,
+                endpoint=endpoint,
+                model=model,
+                row=row,
+                source=source,
+                target=target,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                retries=retries,
+            ): index
+            for index, row in enumerate(rows)
+        }
+        for future in tqdm(
+            iterable=as_completed(fs=futures),
+            total=len(futures),
+            desc=desc,
+            unit="rows",
+        ):
+            translated_rows[futures[future]] = future.result()
+
+    elapsed = time.monotonic() - started_at
+    return [row for row in translated_rows if row is not None], elapsed
+
+
+def write_rows(*, output_path: Path, rows: list[dict[str, Any]]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open(mode="a", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+        file.flush()
+
+
+def materialize_dataset(
+    *,
+    output_path: Path,
+    output_dir: Path,
+    output_split: str,
+) -> DatasetDict:
+    dataset = load_dataset(
+        path="json",
+        data_files={output_split: str(output_path)},
+    )
+    dataset_dict = DatasetDict(dataset)
+
+    hf_dataset_path = output_dir / "hf_dataset"
+    if hf_dataset_path.exists():
+        shutil.rmtree(path=hf_dataset_path)
+    dataset_dict.save_to_disk(dataset_dict_path=str(hf_dataset_path))
+
+    parquet_dir = output_dir / "parquet"
+    if parquet_dir.exists():
+        shutil.rmtree(path=parquet_dir)
+    parquet_dir.mkdir(parents=True, exist_ok=True)
+    for split_name, split_dataset in dataset_dict.items():
+        split_dataset.to_parquet(str(parquet_dir / f"{split_name}.parquet"))
+
+    return dataset_dict
+
+
+def push_checkpoint(
+    *,
+    output_path: Path,
+    output_dir: Path,
+    output_split: str,
+    hub_dataset: str,
+    private: bool,
+    completed_rows: int,
+) -> None:
+    dataset_dict = materialize_dataset(
+        output_path=output_path,
+        output_dir=output_dir,
+        output_split=output_split,
+    )
+    dataset_dict.push_to_hub(
+        repo_id=hub_dataset,
+        private=private,
+        commit_message=f"update translated rows to {completed_rows}",
+    )
+    print(f"pushed {completed_rows:,} rows to {hub_dataset}")
+
+
+def worker_candidates_for(*, raw_candidates: str, max_workers: int) -> list[int]:
+    candidates = []
+    for raw_candidate in raw_candidates.split(","):
+        worker_count = int(raw_candidate.strip())
+        if 0 < worker_count <= max_workers:
+            candidates.append(worker_count)
+    if not candidates:
+        candidates.append(max_workers)
+    return sorted(set(candidates))
+
+
+def load_streaming_rows(
+    *, args: argparse.Namespace, total_rows: int
+) -> list[dict[str, Any]]:
+    return list(islice(iter_streaming_rows(args=args), total_rows))
+
+
+def iter_streaming_rows(
+    *, args: argparse.Namespace, start_index: int = 0
+) -> Iterator[dict[str, Any]]:
+    dataset = load_dataset(
+        path=args.dataset,
+        name=args.config,
+        split=args.split,
+        streaming=True,
+    )
+    for index, row in enumerate(dataset):
+        if index < start_index:
+            continue
+        if args.limit is not None and index >= args.limit:
+            break
+        yield dict(row)
+
+
+def check_examples(*, rows: list[dict[str, Any]], n_examples: int) -> None:
+    if n_examples <= 0:
+        return
+
+    sampled_rows = rows[:n_examples]
+    if not sampled_rows:
+        print("No rows available for Polars sample check")
+        return
+
+    frame = polars.DataFrame(sampled_rows)
+    message_stats = frame.select(
+        polars.col("messages").list.len().alias("message_count"),
+        polars.col("source").alias("source"),
+    )
+    print("\nPolars sample check")
+    print(f"Rows checked: {len(sampled_rows):,}")
+    print(frame.schema)
+    print(message_stats.head(n=10))
+
+    for index, row in enumerate(sampled_rows[:3]):
+        first_message = row["messages"][0]
+        print(
+            f"example {index}: role={first_message['role']} "
+            f"content={first_message['content'][:160]!r}"
+        )
+
+
+def maybe_push(
+    *,
+    args: argparse.Namespace,
+    output_path: Path,
+    output_dir: Path,
+    completed_rows: int,
+    last_pushed_at: int,
+) -> int:
+    if args.no_push or completed_rows - last_pushed_at < args.push_every:
+        return last_pushed_at
+
+    push_checkpoint(
+        output_path=output_path,
+        output_dir=output_dir,
+        output_split=args.output_split,
+        hub_dataset=args.hub_dataset,
+        private=args.private,
+        completed_rows=completed_rows,
+    )
+    return completed_rows
+
+
+def take_rows(*, rows: Iterator[dict[str, Any]], n_rows: int) -> list[dict[str, Any]]:
+    return list(islice(rows, n_rows))
+
+
+def translate_with_warmup(
+    *,
+    args: argparse.Namespace,
+    rows: Iterator[dict[str, Any]],
+    output_path: Path,
+    output_dir: Path,
+    start_index: int,
+    client: httpx.Client,
+) -> tuple[int, int, int]:
+    best_workers = args.workers if args.workers else min(args.max_workers, 32)
+    last_pushed_at = start_index
+
+    if args.workers:
+        return best_workers, last_pushed_at, start_index
+
+    scores = []
+    current_index = start_index
+    for workers in worker_candidates_for(
+        raw_candidates=args.worker_candidates,
+        max_workers=args.max_workers,
+    ):
+        warmup_rows = take_rows(rows=rows, n_rows=args.warmup_rows)
+        if not warmup_rows:
+            break
+        translated_rows, elapsed = translate_rows(
+            rows=warmup_rows,
+            client=client,
+            endpoint=args.endpoint,
+            model=args.model,
+            source=args.source,
+            target=args.target,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            retries=args.retries,
+            workers=workers,
+            desc=f"warmup workers={workers}",
+        )
+        write_rows(output_path=output_path, rows=translated_rows)
+        current_index += len(translated_rows)
+        throughput = len(translated_rows) / elapsed if elapsed else 0
+        scores.append((throughput, workers))
+        print(f"workers={workers} translated {throughput:.2f} rows/sec")
+        last_pushed_at = maybe_push(
+            args=args,
+            output_path=output_path,
+            output_dir=output_dir,
+            completed_rows=current_index,
+            last_pushed_at=last_pushed_at,
+        )
+
+    if scores:
+        best_workers = max(scores)[1]
+    print(f"selected workers={best_workers}")
+    return best_workers, last_pushed_at, current_index
+
+
+def translate_remaining(
+    *,
+    args: argparse.Namespace,
+    rows: Iterator[dict[str, Any]],
+    output_path: Path,
+    output_dir: Path,
+    start_index: int,
+    workers: int,
+    last_pushed_at: int,
+    client: httpx.Client,
+) -> None:
+    current_index = start_index
+    while True:
+        batch_rows = take_rows(rows=rows, n_rows=args.batch_size)
+        if not batch_rows:
+            break
+        batch_end = current_index + len(batch_rows)
+        translated_rows, _ = translate_rows(
+            rows=batch_rows,
+            client=client,
+            endpoint=args.endpoint,
+            model=args.model,
+            source=args.source,
+            target=args.target,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            retries=args.retries,
+            workers=workers,
+            desc=f"translate {current_index:,}-{batch_end:,}",
+        )
+        write_rows(output_path=output_path, rows=translated_rows)
+        current_index += len(translated_rows)
+        last_pushed_at = maybe_push(
+            args=args,
+            output_path=output_path,
+            output_dir=output_dir,
+            completed_rows=current_index,
+            last_pushed_at=last_pushed_at,
+        )
+
+    if not args.no_push and last_pushed_at != current_index:
+        push_checkpoint(
+            output_path=output_path,
+            output_dir=output_dir,
+            output_split=args.output_split,
+            hub_dataset=args.hub_dataset,
+            private=args.private,
+            completed_rows=current_index,
+        )
+    elif args.no_push:
+        materialize_dataset(
+            output_path=output_path,
+            output_dir=output_dir,
+            output_split=args.output_split,
+        )
+
+
+def prepare_output(*, args: argparse.Namespace, output_path: Path) -> int:
+    if args.overwrite and output_path.exists():
+        output_path.unlink()
+    if not args.resume and output_path.exists():
+        raise FileExistsError(f"{output_path} exists. Use --resume or --overwrite.")
+    return count_jsonl_rows(path=output_path) if args.resume else 0
+
+
+def main() -> None:
+    args = parse_args()
+    output_dir = Path(args.output_dir)
+    output_path = output_dir / f"{args.output_split}.jsonl"
+
+    sample_rows = load_streaming_rows(
+        args=args,
+        total_rows=max(args.check_examples, 0),
+    )
+    check_examples(rows=sample_rows, n_examples=args.check_examples)
+    if args.check_only:
+        return
+
+    start_index = prepare_output(args=args, output_path=output_path)
+    if args.limit is not None and start_index > args.limit:
+        raise ValueError(
+            f"{output_path} has {start_index} rows, but --limit is {args.limit}"
+        )
+    if args.limit is not None and start_index == args.limit:
+        print(f"already translated {args.limit:,} rows")
+        return
+
+    rows = iter_streaming_rows(args=args, start_index=start_index)
+    limits = httpx.Limits(
+        max_connections=max(args.max_workers, args.workers, 1),
+        max_keepalive_connections=max(args.max_workers, args.workers, 1),
+    )
+    timeout = httpx.Timeout(timeout=args.timeout)
+    started_at = time.monotonic()
+
+    with httpx.Client(timeout=timeout, limits=limits) as client:
+        workers, last_pushed_at, current_index = translate_with_warmup(
+            args=args,
+            rows=rows,
+            output_path=output_path,
+            output_dir=output_dir,
+            start_index=start_index,
+            client=client,
+        )
+        translate_remaining(
+            args=args,
+            rows=rows,
+            output_path=output_path,
+            output_dir=output_dir,
+            start_index=current_index,
+            workers=workers,
+            last_pushed_at=last_pushed_at,
+            client=client,
+        )
+
+    elapsed_minutes = (time.monotonic() - started_at) / 60
+    print(f"done in {elapsed_minutes:.1f} minutes")
+
+
+if __name__ == "__main__":
+    main()
