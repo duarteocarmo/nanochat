@@ -62,7 +62,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--worker-candidates", default="4,8,16,32,64")
     parser.add_argument("--warmup-rows", type=int, default=16)
     parser.add_argument("--push-every", type=int, default=1_000)
-    parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--retries", type=int, default=5)
@@ -94,7 +93,6 @@ def translate_text(
     text: str,
     source: str,
     target: str,
-    max_tokens: int,
     temperature: float,
     retries: int,
 ) -> str:
@@ -109,7 +107,6 @@ def translate_text(
                 "content": prompt_for(text=text, source=source, target=target),
             }
         ],
-        "max_tokens": max_tokens,
         "temperature": temperature,
     }
 
@@ -135,7 +132,6 @@ def translate_row(
     row: dict[str, Any],
     source: str,
     target: str,
-    max_tokens: int,
     temperature: float,
     retries: int,
 ) -> dict[str, Any]:
@@ -149,7 +145,6 @@ def translate_row(
             text=message["content"],
             source=source,
             target=target,
-            max_tokens=max_tokens,
             temperature=temperature,
             retries=retries,
         )
@@ -169,7 +164,6 @@ def translate_rows(
     model: str,
     source: str,
     target: str,
-    max_tokens: int,
     temperature: float,
     retries: int,
     workers: int,
@@ -188,7 +182,6 @@ def translate_rows(
                 row=row,
                 source=source,
                 target=target,
-                max_tokens=max_tokens,
                 temperature=temperature,
                 retries=retries,
             ): index
@@ -448,7 +441,6 @@ def translate_with_warmup(
             model=args.model,
             source=args.source,
             target=args.target,
-            max_tokens=args.max_tokens,
             temperature=args.temperature,
             retries=args.retries,
             workers=workers,
@@ -497,7 +489,6 @@ def translate_remaining(
             model=args.model,
             source=args.source,
             target=args.target,
-            max_tokens=args.max_tokens,
             temperature=args.temperature,
             retries=args.retries,
             workers=workers,

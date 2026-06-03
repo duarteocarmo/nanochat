@@ -106,3 +106,37 @@ def test_sampled_rows_respect_resume_and_limit(monkeypatch):
     )
 
     assert rows == [{"id": 3}, {"id": 8}]
+
+
+def test_translate_text_does_not_limit_output_tokens():
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "olá"}}]}
+
+    class FakeClient:
+        def __init__(self):
+            self.payload = None
+
+        def post(self, *, url, json):
+            self.payload = json
+            return FakeResponse()
+
+    client = FakeClient()
+
+    translated = translate_dataset.translate_text(
+        client=client,
+        endpoint="http://localhost:18000/v1/chat/completions",
+        model="translategemma-12b-it",
+        text="hello",
+        source="en",
+        target="pt-PT",
+        temperature=0.0,
+        retries=1,
+    )
+
+    assert translated == "olá"
+    assert client.payload is not None
+    assert "max_tokens" not in client.payload
