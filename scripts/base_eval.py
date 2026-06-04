@@ -1,12 +1,13 @@
 """
 Unified evaluation script for base models.
 
-Supports three evaluation modes (comma-separated):
+Supports evaluation modes (comma-separated):
   --eval core    : CORE metric (accuracy on ICL tasks)
+  --eval ptcore  : Portuguese CORE-style metric
   --eval bpb     : Bits per byte on train/val splits
   --eval sample  : Generate samples from the model
 
-Default is all three: --eval core,bpb,sample
+Default is: --eval core,bpb,sample
 
 Examples:
 
@@ -35,6 +36,7 @@ from nanochat.common import compute_init, compute_cleanup, print0, get_base_dir,
 from nanochat.tokenizer import HuggingFaceTokenizer, get_token_bytes
 from nanochat.checkpoint_manager import load_model
 from nanochat.core_eval import evaluate_task
+from nanochat.ptcore_eval import evaluate_ptcore
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit
 from nanochat.loss_eval import evaluate_bpb
 from nanochat.engine import Engine
@@ -177,11 +179,12 @@ def evaluate_core(model, tokenizer, device, max_per_task=-1):
 
 def main():
     parser = argparse.ArgumentParser(description="Base model evaluation")
-    parser.add_argument('--eval', type=str, default='core,bpb,sample', help='Comma-separated evaluations to run: core,bpb,sample (default: all)')
+    parser.add_argument('--eval', type=str, default='core,bpb,sample', help='Comma-separated evaluations to run: core,ptcore,bpb,sample (default: core,bpb,sample)')
     parser.add_argument('--hf-path', type=str, default=None, help='HuggingFace model path (e.g. openai-community/gpt2-xl)')
     parser.add_argument('--model-tag', type=str, default=None, help='nanochat model tag to identify the checkpoint directory')
     parser.add_argument('--step', type=int, default=None, help='Model step to load (default = last)')
-    parser.add_argument('--max-per-task', type=int, default=-1, help='Max examples per CORE task (-1 = all)')
+    parser.add_argument('--max-per-task', type=int, default=-1, help='Max examples per CORE/PTCORE task (-1 = all)')
+    parser.add_argument('--ptcore-split', type=str, default='val', help='HF split to use for PTCORE evaluation')
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
     parser.add_argument('--split-tokens', type=int, default=40*524288, help='Number of tokens to evaluate per split for BPB')
     parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps (empty = autodetect)')
@@ -189,7 +192,7 @@ def main():
 
     # Parse evaluation modes
     eval_modes = set(mode.strip() for mode in args.eval.split(','))
-    valid_modes = {'core', 'bpb', 'sample'}
+    valid_modes = {'core', 'ptcore', 'bpb', 'sample'}
     invalid = eval_modes - valid_modes
     if invalid:
         parser.error(f"Invalid eval modes: {invalid}. Valid: {valid_modes}")
@@ -217,6 +220,7 @@ def main():
 
     # Results to log
     core_results = None
+    ptcore_results = None
     bpb_results = {}
     samples = []
     unconditioned_samples = []
@@ -297,6 +301,28 @@ def main():
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"CORE metric: {core_results['core_metric']:.4f}")
 
+    # --- PTCORE evaluation ---
+    if 'ptcore' in eval_modes:
+        print0("\n" + "="*80)
+        print0("PTCORE Evaluation")
+        print0("="*80)
+        ptcore_results = evaluate_ptcore(model, tokenizer, device, max_per_task=args.max_per_task, split=args.ptcore_split)
+
+        # Write CSV output
+        if ddp_rank == 0:
+            base_dir = get_base_dir()
+            output_csv_path = os.path.join(base_dir, "base_eval", f"{model_slug}_ptcore.csv")
+            os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
+            with open(output_csv_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(f"{'Task':<35}, {'Accuracy':<10}, {'Centered':<10}\n")
+                for label in ptcore_results["results"]:
+                    acc = ptcore_results["results"][label]
+                    centered = ptcore_results["centered_results"][label]
+                    f.write(f"{label:<35}, {acc:<10.6f}, {centered:<10.6f}\n")
+                f.write(f"{'PTCORE':<35}, {'':<10}, {ptcore_results['ptcore_metric']:<10.6f}\n")
+            print0(f"\nResults written to: {output_csv_path}")
+            print0(f"PTCORE metric: {ptcore_results['ptcore_metric']:.4f}")
+
     # --- Log to report ---
     from nanochat.report import get_report
     report_data = [{"model": model_name}]
@@ -304,6 +330,10 @@ def main():
     if core_results:
         report_data[0]["CORE metric"] = core_results["core_metric"]
         report_data.append(core_results["centered_results"])
+
+    if ptcore_results:
+        report_data[0]["PTCORE metric"] = ptcore_results["ptcore_metric"]
+        report_data.append(ptcore_results["centered_results"])
 
     if bpb_results:
         report_data[0]["train bpb"] = bpb_results.get("train")

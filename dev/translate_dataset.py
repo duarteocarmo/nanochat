@@ -13,6 +13,7 @@
 import argparse
 import json
 import random
+import re
 import shutil
 import time
 import urllib.parse
@@ -20,6 +21,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import islice
 from pathlib import Path
+from threading import Lock
 from typing import Any, Iterator
 
 import httpx
@@ -33,21 +35,36 @@ DATASET_CONFIG = "SFT"
 DATASET_SPLIT = "smoltalk_smollm3_everyday_conversations_no_think"
 DEFAULT_ENDPOINT = "http://127.0.0.1:18000/v1/chat/completions"
 DEFAULT_MODEL = "translategemma-12b-it"
-DEFAULT_OUTPUT_DIR = "datasets/smoltalk2-everyday-conversations-no-think-pt-pt"
-DEFAULT_HUB_DATASET = "duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt"
+DEFAULT_HUB_OWNER = "duarteocarmo"
 DATASETS_SERVER_ROWS_ENDPOINT = "https://datasets-server.huggingface.co/rows"
+
+
+def slug_for(*, split: str, target: str) -> str:
+    if split == DATASET_SPLIT and target == "pt-PT":
+        return "smoltalk2-everyday-conversations-no-think-pt-pt"
+
+    base = split
+    for prefix in ("smoltalk_smollm3_", "smoltalk_"):
+        if base.startswith(prefix):
+            base = base.removeprefix(prefix)
+            break
+
+    split_slug = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")
+    target_slug = re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")
+    return f"smoltalk2-{split_slug}-{target_slug}"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Translate SmolTalk2 everyday conversations to pt-PT with local vLLM.",
+        description="Translate any SmolTalk2 SFT split to pt-PT with local vLLM.",
     )
     parser.add_argument("--dataset", default=DATASET_NAME)
     parser.add_argument("--config", default=DATASET_CONFIG)
     parser.add_argument("--split", default=DATASET_SPLIT)
-    parser.add_argument("--output-split", default=DATASET_SPLIT)
-    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--hub-dataset", default=DEFAULT_HUB_DATASET)
+    parser.add_argument("--output-split", default=None)
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--hub-owner", default=DEFAULT_HUB_OWNER)
+    parser.add_argument("--hub-dataset", default=None)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--source", default="en")
@@ -69,9 +86,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--no-push", action="store_true")
     parser.add_argument("--private", action="store_true")
+    parser.add_argument(
+        "--translate-custom-instructions",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--overwrite", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    output_slug = slug_for(split=args.split, target=args.target)
+    if args.output_split is None:
+        args.output_split = args.split
+    if args.output_dir is None:
+        args.output_dir = f"datasets/{output_slug}"
+    if args.hub_dataset is None:
+        args.hub_dataset = f"{args.hub_owner}/{output_slug}"
+    return args
 
 
 def count_jsonl_rows(*, path: Path) -> int:
@@ -124,6 +155,76 @@ def translate_text(
     raise RuntimeError(f"Translation failed after {retries} retries: {last_error}")
 
 
+def translate_cached_text(
+    *,
+    client: httpx.Client,
+    endpoint: str,
+    model: str,
+    text: str,
+    source: str,
+    target: str,
+    temperature: float,
+    retries: int,
+    cache: dict[tuple[str, str, str], str],
+    cache_lock: Lock,
+) -> str:
+    cache_key = (source, target, text)
+    with cache_lock:
+        if cache_key in cache:
+            return cache[cache_key]
+
+    translated = translate_text(
+        client=client,
+        endpoint=endpoint,
+        model=model,
+        text=text,
+        source=source,
+        target=target,
+        temperature=temperature,
+        retries=retries,
+    )
+    with cache_lock:
+        cache[cache_key] = translated
+    return translated
+
+
+def translate_chat_template_kwargs(
+    *,
+    client: httpx.Client,
+    endpoint: str,
+    model: str,
+    row: dict[str, Any],
+    source: str,
+    target: str,
+    temperature: float,
+    retries: int,
+    cache: dict[tuple[str, str, str], str],
+    cache_lock: Lock,
+) -> dict[str, Any] | None:
+    kwargs = row.get("chat_template_kwargs")
+    if not isinstance(kwargs, dict):
+        return None
+
+    custom_instructions = kwargs.get("custom_instructions")
+    if not isinstance(custom_instructions, str) or not custom_instructions.strip():
+        return kwargs
+
+    translated_kwargs = dict(kwargs)
+    translated_kwargs["custom_instructions"] = translate_cached_text(
+        client=client,
+        endpoint=endpoint,
+        model=model,
+        text=custom_instructions,
+        source=source,
+        target=target,
+        temperature=temperature,
+        retries=retries,
+        cache=cache,
+        cache_lock=cache_lock,
+    )
+    return translated_kwargs
+
+
 def translate_row(
     *,
     client: httpx.Client,
@@ -134,9 +235,14 @@ def translate_row(
     target: str,
     temperature: float,
     retries: int,
+    translate_custom_instructions: bool,
+    custom_instruction_cache: dict[tuple[str, str, str], str],
+    custom_instruction_cache_lock: Lock,
 ) -> dict[str, Any]:
     translated_messages = []
     for message in row["messages"]:
+        if not isinstance(message["content"], str):
+            raise TypeError("Only string message content is supported")
         translated_message = dict(message)
         translated_message["content"] = translate_text(
             client=client,
@@ -150,10 +256,26 @@ def translate_row(
         )
         translated_messages.append(translated_message)
 
-    return {
+    translated_row = {
         **row,
         "messages": translated_messages,
     }
+    if translate_custom_instructions:
+        translated_kwargs = translate_chat_template_kwargs(
+            client=client,
+            endpoint=endpoint,
+            model=model,
+            row=row,
+            source=source,
+            target=target,
+            temperature=temperature,
+            retries=retries,
+            cache=custom_instruction_cache,
+            cache_lock=custom_instruction_cache_lock,
+        )
+        if translated_kwargs is not None:
+            translated_row["chat_template_kwargs"] = translated_kwargs
+    return translated_row
 
 
 def translate_rows(
@@ -168,6 +290,9 @@ def translate_rows(
     retries: int,
     workers: int,
     desc: str,
+    translate_custom_instructions: bool,
+    custom_instruction_cache: dict[tuple[str, str, str], str],
+    custom_instruction_cache_lock: Lock,
 ) -> tuple[list[dict[str, Any]], float]:
     started_at = time.monotonic()
     translated_rows: list[dict[str, Any] | None] = [None] * len(rows)
@@ -184,6 +309,9 @@ def translate_rows(
                 target=target,
                 temperature=temperature,
                 retries=retries,
+                translate_custom_instructions=translate_custom_instructions,
+                custom_instruction_cache=custom_instruction_cache,
+                custom_instruction_cache_lock=custom_instruction_cache_lock,
             ): index
             for index, row in enumerate(rows)
         }
@@ -367,10 +495,10 @@ def check_examples(*, rows: list[dict[str, Any]], n_examples: int) -> None:
         return
 
     frame = polars.DataFrame(sampled_rows)
-    message_stats = frame.select(
-        polars.col("messages").list.len().alias("message_count"),
-        polars.col("source").alias("source"),
-    )
+    stats_exprs = [polars.col("messages").list.len().alias("message_count")]
+    if "source" in frame.columns:
+        stats_exprs.append(polars.col("source").alias("source"))
+    message_stats = frame.select(*stats_exprs)
     print("\nPolars sample check")
     print(f"Rows checked: {len(sampled_rows):,}")
     print(frame.schema)
@@ -418,6 +546,8 @@ def translate_with_warmup(
     output_dir: Path,
     start_index: int,
     client: httpx.Client,
+    custom_instruction_cache: dict[tuple[str, str, str], str],
+    custom_instruction_cache_lock: Lock,
 ) -> tuple[int, int, int]:
     best_workers = args.workers if args.workers else min(args.max_workers, 32)
     last_pushed_at = start_index
@@ -445,6 +575,9 @@ def translate_with_warmup(
             retries=args.retries,
             workers=workers,
             desc=f"warmup workers={workers}",
+            translate_custom_instructions=args.translate_custom_instructions,
+            custom_instruction_cache=custom_instruction_cache,
+            custom_instruction_cache_lock=custom_instruction_cache_lock,
         )
         write_rows(output_path=output_path, rows=translated_rows)
         current_index += len(translated_rows)
@@ -475,6 +608,8 @@ def translate_remaining(
     workers: int,
     last_pushed_at: int,
     client: httpx.Client,
+    custom_instruction_cache: dict[tuple[str, str, str], str],
+    custom_instruction_cache_lock: Lock,
 ) -> None:
     current_index = start_index
     while True:
@@ -493,6 +628,9 @@ def translate_remaining(
             retries=args.retries,
             workers=workers,
             desc=f"translate {current_index:,}-{batch_end:,}",
+            translate_custom_instructions=args.translate_custom_instructions,
+            custom_instruction_cache=custom_instruction_cache,
+            custom_instruction_cache_lock=custom_instruction_cache_lock,
         )
         write_rows(output_path=output_path, rows=translated_rows)
         current_index += len(translated_rows)
@@ -570,6 +708,8 @@ def main() -> None:
     )
     timeout = httpx.Timeout(timeout=args.timeout)
     started_at = time.monotonic()
+    custom_instruction_cache: dict[tuple[str, str, str], str] = {}
+    custom_instruction_cache_lock = Lock()
 
     with httpx.Client(timeout=timeout, limits=limits) as client:
         workers, last_pushed_at, current_index = translate_with_warmup(
@@ -579,6 +719,8 @@ def main() -> None:
             output_dir=output_dir,
             start_index=start_index,
             client=client,
+            custom_instruction_cache=custom_instruction_cache,
+            custom_instruction_cache_lock=custom_instruction_cache_lock,
         )
         translate_remaining(
             args=args,
@@ -589,6 +731,8 @@ def main() -> None:
             workers=workers,
             last_pushed_at=last_pushed_at,
             client=client,
+            custom_instruction_cache=custom_instruction_cache,
+            custom_instruction_cache_lock=custom_instruction_cache_lock,
         )
 
     elapsed_minutes = (time.monotonic() - started_at) / 60

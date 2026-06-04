@@ -34,6 +34,7 @@ from nanochat.loss_eval import evaluate_bpb
 from nanochat.engine import Engine
 from nanochat.flash_attention import HAS_FA3
 from scripts.base_eval import evaluate_core
+from nanochat.ptcore_eval import evaluate_ptcore
 print_banner()
 
 # -----------------------------------------------------------------------------
@@ -71,8 +72,10 @@ parser.add_argument("--resume-from-step", type=int, default=-1, help="resume tra
 # Evaluation
 parser.add_argument("--eval-every", type=int, default=250, help="evaluate val bpb every N steps (-1 = disable)")
 parser.add_argument("--eval-tokens", type=int, default=80*524288, help="number of tokens to evaluate val loss on")
-parser.add_argument("--core-metric-every", type=int, default=2000, help="evaluate CORE metric every N steps (-1 = disable)")
-parser.add_argument("--core-metric-max-per-task", type=int, default=500, help="examples per task for CORE metric")
+parser.add_argument("--core-metric-every", type=int, default=2000, help="evaluate CORE/PTCORE metric every N steps (-1 = disable)")
+parser.add_argument("--core-metric-max-per-task", type=int, default=500, help="examples per task for CORE/PTCORE metric")
+parser.add_argument("--core-metric-name", type=str, default="core", choices=["core", "ptcore"], help="capability metric to evaluate")
+parser.add_argument("--ptcore-split", type=str, default="val", help="HF split to use when --core-metric-name=ptcore")
 parser.add_argument("--sample-every", type=int, default=2000, help="sample from model every N steps (-1 = disable)")
 parser.add_argument("--save-every", type=int, default=-1, help="save checkpoints every N steps (-1 = only at end)")
 # Output
@@ -435,20 +438,31 @@ while True:
         })
         model.train()
 
-    # once in a while: estimate the CORE metric (all ranks participate)
+    # once in a while: estimate the CORE/PTCORE metric (all ranks participate)
     # use the original uncompiled model because the inputs keep changing shape
     # disable FP8 for evaluation to use BF16 for more consistent/accurate results
     results = {}
     if args.core_metric_every > 0 and (last_step or (step > 0 and step % args.core_metric_every == 0)):
         model.eval()
-        with disable_fp8(orig_model):
-            results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task)
-        print0(f"Step {step:05d} | CORE metric: {results['core_metric']:.4f}")
+        if args.core_metric_name == "core":
+            metric_label = "CORE"
+            metric_key = "core_metric"
+            with disable_fp8(orig_model):
+                results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task)
+        elif args.core_metric_name == "ptcore":
+            metric_label = "PTCORE"
+            metric_key = "ptcore_metric"
+            with disable_fp8(orig_model):
+                results = evaluate_ptcore(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task, split=args.ptcore_split)
+        else:
+            raise ValueError(f"Unsupported core metric name: {args.core_metric_name}")
+        print0(f"Step {step:05d} | {metric_label} metric: {results[metric_key]:.4f}")
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
-            "core_metric": results["core_metric"],
+            metric_key: results[metric_key],
             "centered_results": results["centered_results"],
+            f"{args.core_metric_name}_centered_results": results["centered_results"],
         })
         model.train()
 
@@ -618,6 +632,7 @@ get_report().log(section="Base model training", data=[
         "Minimum validation bpb": min_val_bpb if val_bpb is not None else None,
         "Final validation bpb": val_bpb,
         "CORE metric estimate": results.get("core_metric", None),
+        "PTCORE metric estimate": results.get("ptcore_metric", None),
         "MFU %": f"{mfu:.2f}%",
         "Total training flops": f"{flops_so_far:e}",
         "Total training time": f"{total_training_time/60:.2f}m",
