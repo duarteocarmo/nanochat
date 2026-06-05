@@ -39,12 +39,50 @@ no thinking traces, no tool calls, and preserve the `messages` format expected b
 
 | Priority | SmolTalk2 split | Rows | Notes |
 |---|---|---:|---|
-| Now | `smoltalk_smollm3_everyday_conversations_no_think` | 2.3k | `duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt`. |
-| Now | `smoltalk_smollm3_smol_magpie_ultra_no_think` | 30k-50k sample | Broad general instruction coverage; sample first instead of translating all 406k rows. |
+| Now | `smoltalk_smollm3_everyday_conversations_no_think` | 2.3k | `duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt` |
+| Now | `smoltalk_smollm3_smol_magpie_ultra_no_think` | 30k-50k sample | `duarteocarmo/smoltalk2-magpie-ultra-no-think-pt-pt` |
 | Now | `tulu_3_sft_personas_instruction_following_no_think` | 30k | Constraint and instruction-following coverage. |
 | Now | `smoltalk_smollm3_smol_rewrite_no_think` | 25k-53k | Rewrite and editing behaviour. |
 | Later | `smoltalk_smollm3_smol_summarize_no_think` | 20k-50k sample | Useful summarisation behaviour; handle `custom_instructions` correctly. |
 | Later | `smoltalk_multilingual_8languages_lang_5_no_think` | 25k-50k sample | Already Portuguese-ish, but needs PT-PT filtering/normalisation before use. |
+
+#### Gemma Translate server
+
+Use these settings when serving `translategemma-12b-it` for
+`dev/translate_dataset.py`. The script defaults to
+`http://127.0.0.1:18000/v1/chat/completions` and model name
+`translategemma-12b-it`, matching both commands below.
+
+Docker:
+
+```bash
+docker run -it --rm \
+    --gpus all \
+    --ipc=host \
+    --network host \
+    -e HF_TOKEN=$HF_TOKEN \
+    -v ~/.cache/huggingface:/root/.cache/huggingface \
+    vllm/vllm-openai:latest \
+        --model Infomaniak-AI/vllm-translategemma-12b-it \
+        --served-model-name translategemma-12b-it \
+        --dtype bfloat16 \
+        --gpu-memory-utilization 0.9 \
+        --max-model-len 2048 \
+        --host 0.0.0.0 \
+        --port 18000
+```
+
+Without Docker:
+
+```bash
+HF_TOKEN=$HF_TOKEN uv run --with vllm vllm serve Infomaniak-AI/vllm-translategemma-12b-it \
+    --served-model-name translategemma-12b-it \
+    --dtype bfloat16 \
+    --gpu-memory-utilization 0.9 \
+    --max-model-len 2048 \
+    --host 0.0.0.0 \
+    --port 18000
+```
 
 ### PTCORE
 
