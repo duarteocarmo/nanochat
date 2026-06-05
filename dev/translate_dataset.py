@@ -116,6 +116,45 @@ def prompt_for(*, text: str, source: str, target: str) -> str:
     return f"<<<source>>>{source}<<<target>>>{target}<<<text>>>{text}"
 
 
+def is_context_length_error(*, error: httpx.HTTPStatusError) -> bool:
+    if error.response.status_code != 400:
+        return False
+    response_text = error.response.text.lower()
+    return (
+        "maximum context length" in response_text
+        or "context length" in response_text
+        or "input_tokens" in response_text
+    )
+
+
+def split_text_for_context(*, text: str) -> list[str]:
+    if len(text) <= 1:
+        return [text]
+
+    midpoint = len(text) // 2
+    lower_bound = max(1, len(text) // 4)
+    upper_bound = max(lower_bound + 1, len(text) * 3 // 4)
+    candidates: list[int] = []
+    for separator in ["\n\n", "\n", ". ", "; ", ", ", " "]:
+        before = text.rfind(separator, lower_bound, midpoint)
+        after = text.find(separator, midpoint, upper_bound)
+        if before != -1:
+            candidates.append(before + len(separator))
+        if after != -1:
+            candidates.append(after + len(separator))
+        if candidates:
+            break
+
+    split_at = min(candidates, key=lambda index: abs(index - midpoint)) if candidates else midpoint
+    chunks = [text[:split_at].strip(), text[split_at:].strip()]
+    return [chunk for chunk in chunks if chunk]
+
+
+def join_translated_chunks(*, chunks: list[str]) -> str:
+    joined = " ".join(chunk.strip() for chunk in chunks if chunk.strip())
+    return re.sub(r"\s+([,.;:!?])", r"\1", joined).strip()
+
+
 def translate_text(
     *,
     client: httpx.Client,
@@ -126,6 +165,8 @@ def translate_text(
     target: str,
     temperature: float,
     retries: int,
+    split_depth: int = 0,
+    max_split_depth: int = 8,
 ) -> str:
     if not text.strip():
         return text
@@ -148,6 +189,41 @@ def translate_text(
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"].strip()
+        except httpx.HTTPStatusError as error:
+            if is_context_length_error(error=error):
+                if split_depth >= max_split_depth:
+                    raise RuntimeError(
+                        "Context fallback exceeded max depth "
+                        f"for text length {len(text)}: {error}"
+                    ) from error
+                chunks = split_text_for_context(text=text)
+                if len(chunks) <= 1:
+                    raise RuntimeError(
+                        f"Context fallback could not split text length {len(text)}: {error}"
+                    ) from error
+                print(
+                    "context fallback "
+                    f"depth={split_depth} chunks={len(chunks)} chars={len(text)}",
+                    flush=True,
+                )
+                translated_chunks = [
+                    translate_text(
+                        client=client,
+                        endpoint=endpoint,
+                        model=model,
+                        text=chunk,
+                        source=source,
+                        target=target,
+                        temperature=temperature,
+                        retries=retries,
+                        split_depth=split_depth + 1,
+                        max_split_depth=max_split_depth,
+                    )
+                    for chunk in chunks
+                ]
+                return join_translated_chunks(chunks=translated_chunks)
+            last_error = error
+            time.sleep(2**attempt)
         except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError) as error:
             last_error = error
             time.sleep(2**attempt)

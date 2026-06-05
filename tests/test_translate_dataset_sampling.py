@@ -1,4 +1,6 @@
 import importlib.util
+
+import httpx
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -140,3 +142,84 @@ def test_translate_text_does_not_limit_output_tokens():
     assert translated == "olá"
     assert client.payload is not None
     assert "max_tokens" not in client.payload
+
+
+def response_with_context_error():
+    request = httpx.Request(
+        method="POST",
+        url="http://localhost:18000/v1/chat/completions",
+    )
+    response = httpx.Response(
+        status_code=400,
+        text=(
+            "This model's maximum context length is 2048 tokens. "
+            "However, your prompt contains at least 2049 input tokens."
+        ),
+        request=request,
+    )
+    return httpx.HTTPStatusError(
+        message="400 Bad Request",
+        request=request,
+        response=response,
+    )
+
+
+def test_context_length_error_is_detected():
+    assert translate_dataset.is_context_length_error(
+        error=response_with_context_error(),
+    )
+
+
+def test_split_text_for_context_prefers_natural_boundaries():
+    chunks = translate_dataset.split_text_for_context(
+        text="First sentence. Second sentence. Third sentence. Fourth sentence.",
+    )
+
+    assert len(chunks) == 2
+    assert "Second sentence." in chunks[0]
+    assert chunks[1].startswith("Third sentence.")
+
+
+def test_translate_text_splits_and_retries_context_length_errors():
+    class FakeResponse:
+        def __init__(self, *, content=None, error=None):
+            self.content = content
+            self.error = error
+
+        def raise_for_status(self):
+            if self.error is not None:
+                raise self.error
+
+        def json(self):
+            return {"choices": [{"message": {"content": self.content}}]}
+
+    class FakeClient:
+        def __init__(self):
+            self.texts = []
+
+        def post(self, *, url, json):
+            prompt = json["messages"][0]["content"]
+            text = prompt.split("<<<text>>>", maxsplit=1)[1]
+            self.texts.append(text)
+            if len(self.texts) == 1:
+                return FakeResponse(error=response_with_context_error())
+            return FakeResponse(content=f"pt:{text}")
+
+    client = FakeClient()
+    translated = translate_dataset.translate_text(
+        client=client,
+        endpoint="http://localhost:18000/v1/chat/completions",
+        model="translategemma-12b-it",
+        text="First sentence. Second sentence. Third sentence. Fourth sentence.",
+        source="en",
+        target="pt-PT",
+        temperature=0.0,
+        retries=1,
+    )
+
+    assert len(client.texts) == 3
+    assert client.texts[0] == "First sentence. Second sentence. Third sentence. Fourth sentence."
+    assert client.texts[1] != client.texts[0]
+    assert client.texts[2] != client.texts[0]
+    assert translated == "pt:First sentence. Second sentence. pt:Third sentence. Fourth sentence."
+
