@@ -47,24 +47,24 @@ python -m scripts.base_eval \
     --ptcore-split=val \
     --eval ptcore,bpb
 
-# SFT + chat eval placeholder. Keep commented until the PT-only SFT mix/eval is wired.
-# curl -L -o $NANOCHAT_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
-# python -m scripts.chat_sft \
-#     --model-tag=pt-mini \
-#     --max-seq-len=128 \
-#     --device-batch-size=2 \
-#     --total-batch-size=256 \
-#     --eval-every=5 \
-#     --eval-tokens=1024 \
-#     --chatcore-every=-1 \
-#     --num-iterations=10 \
-#     --run=$WANDB_RUN
-#
+# Tiny PT-only SFT smoke run
+python -m scripts.chat_sft \
+    --model-tag=pt-mini \
+    --max-seq-len=128 \
+    --device-batch-size=2 \
+    --total-batch-size=256 \
+    --eval-every=5 \
+    --eval-tokens=1024 \
+    --chatcore-every=-1 \
+    --num-iterations=10 \
+    --run=$WANDB_RUN
+
+# English chat eval placeholder. Keep commented until PT chat eval is wired.
 # python -m scripts.chat_eval \
 #     --source=sft \
 #     --model-tag=pt-mini \
 #     --task-name=ARC-Easy \
 #     --batch-size=1 \
 #     --max-problems=1
-#
-# python -m scripts.chat_cli -p "Olá! Quem és tu?" --model-tag=pt-mini
+
+python -m scripts.chat_cli -p "Olá! Quem és tu?" --model-tag=pt-mini

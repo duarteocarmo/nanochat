@@ -12,8 +12,9 @@
 - [x] Add Portuguese base-model sample prompts.
 - [x] Publish finalized PT-PT SmolTalk2 SFT datasets on Hugging Face.
 - [x] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
-- [ ] Adapt SFT to run PT-only without default English datasets.
-- [ ] Run tiny PT SFT on CPU/MPS.
+- [x] Adapt SFT to run PT-only without default English datasets.
+- [x] Run tiny PT SFT on CPU/MPS.
+- [ ] Add an equivalent of ChatCORE for the sft part in Portuguese
 - [ ] Test PT chat via `chat_cli`.
 - [ ] Create one end-to-end `runs/runptcpu.sh` script.
 - [ ] Verify fresh local CPU/MPS run completes end-to-end.
@@ -27,12 +28,12 @@
 
 ### SFT Datasets
 
-The PT-PT SFT datasets are translated from selected [`HuggingFaceTB/smoltalk2`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2) SFT splits using [`Infomaniak-AI/vllm-translategemma-4b-it`](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it).
+The PT-PT SFT datasets are translated from selected [`HuggingFaceTB/smoltalk2`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2) SFT splits using [`Infomaniak-AI/vllm-translategemma-4b-it`](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it). They are republished for SFT as [`duarteocarmo/smoltalk2PT`](https://huggingface.co/datasets/duarteocarmo/smoltalk2PT), with deterministic train/test splits per subset.
 
-- `smoltalk_smollm3_everyday_conversations_no_think`: 2,260 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_everyday_conversations_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt)
-- `smoltalk_smollm3_smol_magpie_ultra_no_think`: 50,000 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_magpie_ultra_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-magpie-ultra-no-think-pt-pt)
-- `tulu_3_sft_personas_instruction_following_no_think`: 29,970 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/tulu_3_sft_personas_instruction_following_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-tulu-3-sft-personas-instruction-following-no-think-pt-pt)
-- `smoltalk_smollm3_smol_rewrite_no_think`: 30,000 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_rewrite_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-smol-rewrite-no-think-pt-pt)
+- `everyday_conversations`: 2,060 train / 200 test rows; translated from [`smoltalk_smollm3_everyday_conversations_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_everyday_conversations_no_think).
+- `magpie_ultra`: 47,500 train / 2,500 test rows; translated from [`smoltalk_smollm3_smol_magpie_ultra_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_magpie_ultra_no_think).
+- `tulu_personas`: 28,470 train / 1,500 test rows; translated from [`tulu_3_sft_personas_instruction_following_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/tulu_3_sft_personas_instruction_following_no_think).
+- `smol_rewrite`: 28,500 train / 1,500 test rows; translated from [`smoltalk_smollm3_smol_rewrite_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_rewrite_no_think).
 
 ### PTCORE Datasets
 
