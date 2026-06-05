@@ -6,7 +6,7 @@
 - [x] Add portuguese text to tokenizer eval
 - [x] Train a PT-PT tokenizer on Bagaço.
 - [x] Add Portuguese tokenizer eval examples and compression reporting.
-- [ ] Run tiny PT pretraining on CPU/MPS with CORE disabled.
+- [x] Run tiny PT pretraining on CPU/MPS with CORE disabled.
 - [x] Add Portuguese base-model sample prompts.
 - [ ] Create a minimal PT-PT `customjson` SFT dataset.
 - [ ] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
@@ -18,8 +18,8 @@
 - [ ] Estimate model sizes for depth/vocab options.
 - [ ] Estimate usable Bagaço token budget.
 - [ ] Sketch first real `$200` training config.
-- [ ] Plan future EuroEval integration.
-- [ ] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
+- [x] Plan future EuroEval integration.
+- [x] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
 - [ ] Plan future PT/EN data-mix ablations.
 
 ![nanochat logo](dev/nanochat.png)
@@ -41,7 +41,7 @@ no thinking traces, no tool calls, and preserve the `messages` format expected b
 |---|---|---:|---|
 | Now | `smoltalk_smollm3_everyday_conversations_no_think` | 2.3k | `duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt` |
 | Now | `smoltalk_smollm3_smol_magpie_ultra_no_think` | 30k-50k sample | `duarteocarmo/smoltalk2-magpie-ultra-no-think-pt-pt` |
-| Now | `tulu_3_sft_personas_instruction_following_no_think` | 30k | Constraint and instruction-following coverage. |
+| Now | `tulu_3_sft_personas_instruction_following_no_think` | 30k | `duarteocarmo/smoltalk2-tulu-3-sft-personas-instruction-following-no-think-pt-pt` |
 | Now | `smoltalk_smollm3_smol_rewrite_no_think` | 25k-53k | Rewrite and editing behaviour. |
 | Later | `smoltalk_smollm3_smol_summarize_no_think` | 20k-50k sample | Useful summarisation behaviour; handle `custom_instructions` correctly. |
 | Later | `smoltalk_multilingual_8languages_lang_5_no_think` | 25k-50k sample | Already Portuguese-ish, but needs PT-PT filtering/normalisation before use. |
