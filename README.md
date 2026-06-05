@@ -1,6 +1,8 @@
 # nanochat
 
-## EU-PT Version 
+## Portuguese version details
+
+### TODO
 
 - [x] Add Bagaço dataset loading/repackaging into nanochat’s expected parquet format.
 - [x] Add portuguese text to tokenizer eval
@@ -8,8 +10,8 @@
 - [x] Add Portuguese tokenizer eval examples and compression reporting.
 - [x] Run tiny PT pretraining on CPU/MPS with CORE disabled.
 - [x] Add Portuguese base-model sample prompts.
-- [ ] Create a minimal PT-PT `customjson` SFT dataset.
-- [ ] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
+- [x] Publish finalized PT-PT SmolTalk2 SFT datasets on Hugging Face.
+- [x] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
 - [ ] Adapt SFT to run PT-only without default English datasets.
 - [ ] Run tiny PT SFT on CPU/MPS.
 - [ ] Test PT chat via `chat_cli`.
@@ -22,6 +24,30 @@
 - [x] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
 - [ ] Plan future PT/EN data-mix ablations.
 
+
+### SFT Datasets
+
+The PT-PT SFT datasets are translated from selected [`HuggingFaceTB/smoltalk2`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2) SFT splits using [`Infomaniak-AI/vllm-translategemma-4b-it`](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it).
+
+- `smoltalk_smollm3_everyday_conversations_no_think`: 2,260 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_everyday_conversations_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt)
+- `smoltalk_smollm3_smol_magpie_ultra_no_think`: 50,000 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_magpie_ultra_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-magpie-ultra-no-think-pt-pt)
+- `tulu_3_sft_personas_instruction_following_no_think`: 29,970 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/tulu_3_sft_personas_instruction_following_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-tulu-3-sft-personas-instruction-following-no-think-pt-pt)
+- `smoltalk_smollm3_smol_rewrite_no_think`: 30,000 rows; [original split](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_rewrite_no_think); [PT-PT dataset](https://huggingface.co/datasets/duarteocarmo/smoltalk2-smol-rewrite-no-think-pt-pt)
+
+### PTCORE Datasets
+
+PTCORE is the Portuguese CORE-style pretraining metric implemented in
+[`nanochat/ptcore_eval.py`](nanochat/ptcore_eval.py), adapted from the
+[Portuguese datasets in EuroEval](https://euroeval.com/datasets/portuguese). It runs cheap 0-shot
+multiple-choice/classification tasks, centers each accuracy above its random
+baseline, and averages the centered scores:
+`centered = (accuracy - random_baseline) / (1 - random_baseline)`.
+
+- Sentiment: [`duarteocarmo/sst2-pt-mini`](https://huggingface.co/datasets/duarteocarmo/sst2-pt-mini); 1,024 train / 256 val / 2,048 test rows; random baseline 0.50; labels are mapped to `positivo` / `negativo`.
+- Linguistic acceptability: [`duarteocarmo/scala-pt`](https://huggingface.co/datasets/duarteocarmo/scala-pt); 1,024 train / 256 val / 2,048 test / 5,998 full_train rows; random baseline 0.50; European Portuguese grammar signal, mapped to `correta` / `incorreta`.
+- Knowledge: [`duarteocarmo/mmlu-pt-mini`](https://huggingface.co/datasets/duarteocarmo/mmlu-pt-mini); 1,024 train / 256 val / 2,048 test rows; random baseline 0.25; 4-way multiple choice with `a`-`d` labels.
+- Commonsense reasoning: [`duarteocarmo/goldenswag-pt-mini`](https://huggingface.co/datasets/duarteocarmo/goldenswag-pt-mini); 672 train / 256 val / 2,048 test rows; random baseline 0.25; 4-way multiple choice with `a`-`d` labels.
+
 ![nanochat logo](dev/nanochat.png)
 ![scaling laws](dev/scaling_laws_jan26.png)
 
@@ -29,76 +55,6 @@ nanochat is the simplest experimental harness for training LLMs. It is designed 
 
 For questions about the repo, I recommend either using [DeepWiki](https://deepwiki.com/karpathy/nanochat) from Devin/Cognition to ask questions about the repo, or use the [Discussions tab](https://github.com/karpathy/nanochat/discussions), or come by the [#nanochat](https://discord.com/channels/1020383067459821711/1427295580895314031) channel on Discord.
 
-## Dataset adaption 
-
-### SFT
-
-Target a compact first PT-PT SFT mix of about 80k-130k conversations. Keep it simple:
-no thinking traces, no tool calls, and preserve the `messages` format expected by
-`scripts/chat_sft.py`.
-
-| Priority | SmolTalk2 split | Rows | Notes |
-|---|---|---:|---|
-| Now | `smoltalk_smollm3_everyday_conversations_no_think` | 2.3k | `duarteocarmo/smoltalk2-everyday-conversations-no-think-pt-pt` |
-| Now | `smoltalk_smollm3_smol_magpie_ultra_no_think` | 30k-50k sample | `duarteocarmo/smoltalk2-magpie-ultra-no-think-pt-pt` |
-| Now | `tulu_3_sft_personas_instruction_following_no_think` | 30k | `duarteocarmo/smoltalk2-tulu-3-sft-personas-instruction-following-no-think-pt-pt` |
-| Now | `smoltalk_smollm3_smol_rewrite_no_think` | 25k-53k | Rewrite and editing behaviour. |
-| Later | `smoltalk_smollm3_smol_summarize_no_think` | 20k-50k sample | Useful summarisation behaviour; handle `custom_instructions` correctly. |
-| Later | `smoltalk_multilingual_8languages_lang_5_no_think` | 25k-50k sample | Already Portuguese-ish, but needs PT-PT filtering/normalisation before use. |
-
-#### Gemma Translate server
-
-Use these settings when serving `translategemma-12b-it` for
-`dev/translate_dataset.py`. The script defaults to
-`http://127.0.0.1:18000/v1/chat/completions` and model name
-`translategemma-12b-it`, matching both commands below.
-
-Docker:
-
-```bash
-docker run -it --rm \
-    --gpus all \
-    --ipc=host \
-    --network host \
-    -e HF_TOKEN=$HF_TOKEN \
-    -v ~/.cache/huggingface:/root/.cache/huggingface \
-    vllm/vllm-openai:latest \
-        --model Infomaniak-AI/vllm-translategemma-12b-it \
-        --served-model-name translategemma-12b-it \
-        --dtype bfloat16 \
-        --gpu-memory-utilization 0.9 \
-        --max-model-len 2048 \
-        --host 0.0.0.0 \
-        --port 18000
-```
-
-Without Docker:
-
-```bash
-HF_TOKEN=$HF_TOKEN uv run --with vllm vllm serve Infomaniak-AI/vllm-translategemma-12b-it \
-    --served-model-name translategemma-12b-it \
-    --dtype bfloat16 \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 2048 \
-    --host 0.0.0.0 \
-    --port 18000
-```
-
-### PTCORE
-
-Start with cheap multiple-choice or classification tasks, then add brittle generative
-tasks later as diagnostics.
-
-| Priority | EuroEval dataset | Task | Notes |
-|---|---|---|---|
-| Now | `sst2-pt` | Sentiment classification | Fast binary task with a clear random baseline. |
-| Now | `scala-pt` | Linguistic acceptability | Good European Portuguese grammar signal. |
-| Now | `mmlu-pt` | Knowledge | Broad 4-way multiple-choice coverage. |
-| Now | `goldenswag-pt` | Common-sense reasoning | 4-way multiple-choice reasoning signal. |
-| Later | `multi-wiki-qa-pt` | Reading comprehension | Strong PT-PT task, but short-answer scoring is harsher/noisier. |
-| Later | `boolq-pt` | Reading comprehension | Useful auxiliary yes/no task, but EuroEval marks it unofficial. |
-| Later | `harem` | Named entity recognition | Valuable PT-origin data, but JSON/entity scoring is brittle. |
-| Later | `publico` | Summarisation | Real Portuguese news summarisation, but slower and noisier for a 250M base model. |
 
 ## Time-to-GPT-2 Leaderboard
 
