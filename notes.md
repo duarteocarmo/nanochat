@@ -24,3 +24,8 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 - Added deterministic `--sample-size` / `--sample-seed` support to `dev/translate_dataset.py` for translating a limited SmolTalk2 Magpie subset instead of the full split.
 - Sampled rows are fetched through the Hugging Face datasets-server rows API, avoiding a full local dataset download before translation starts.
 - Added tests for deterministic sampling, paged row fetching, resume, and `--limit` interaction.
+
+## 2026-06-05: Translation context fallback
+
+- Added a context-length fallback to `dev/translate_dataset.py` that catches vLLM/OpenAI-compatible 400 errors, splits only the overlong message text on natural boundaries, retries chunks recursively, and rejoins translated chunks.
+- Added tests for context-length error detection, natural-boundary splitting, and split-and-retry translation behavior.
