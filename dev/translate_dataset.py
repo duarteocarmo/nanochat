@@ -16,6 +16,7 @@ import random
 import re
 import shutil
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -478,8 +479,32 @@ def fetch_dataset_rows_page(
         }
     )
     url = f"{DATASETS_SERVER_ROWS_ENDPOINT}?{query}"
-    with urllib.request.urlopen(url=url, timeout=120) as response:
-        return json.load(response)
+    last_error = None
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(url=url, timeout=120) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code < 500 and error.code not in (408, 429):
+                raise
+            last_error = error
+        except urllib.error.URLError as error:
+            last_error = error
+
+        if attempt == 5:
+            break
+        delay = min(60, 2**attempt)
+        print(
+            "datasets-server fetch retry "
+            f"attempt={attempt + 1} offset={offset} length={length} error={last_error}",
+            flush=True,
+        )
+        time.sleep(delay)
+
+    raise RuntimeError(
+        "datasets-server fetch failed "
+        f"after retries offset={offset} length={length}: {last_error}"
+    ) from last_error
 
 
 def iter_sampled_rows(*, args: argparse.Namespace, start_index: int) -> Iterator[dict[str, Any]]:
