@@ -4,7 +4,7 @@
 # This script was last updated/tuned on Jan 17, 2026.
 
 # Run as:
-# bash runs/runcpu-pt.sh
+# bash runs/runptcpu.sh
 
 # NOTE: Training LLMs requires GPU compute and $$$. You will not get far on your Macbook.
 # Think of this run as educational/fun demo, not something you should expect to work well.
@@ -40,7 +40,7 @@ python -m scripts.base_train \
     --eval-every=100 \
     --eval-tokens=524288 \
     --core-metric-name=ptcore \
-    --core-metric-every=-1 \
+    --core-metric-every=1000 \
     --sample-every=100 \
     --num-iterations=5000 \
     --run=$WANDB_RUN

@@ -2,7 +2,7 @@
 
 # Tiny Portuguese CPU/MPS integration test. This only checks that the PT pipeline runs.
 # Run as:
-# bash runs/runcpu-pt-mini.sh
+# bash runs/runptcpu-mini.sh
 
 set -e
 
