@@ -38,12 +38,8 @@ source .venv/bin/activate
 python -m nanochat.report reset
 python -m nanochat.dataset -n 8
 
-if [ ! -f "$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl" ] || [ ! -f "$NANOCHAT_BASE_DIR/tokenizer/token_bytes.pt" ]; then
-    python -m scripts.tok_train
-    python -m scripts.tok_eval
-else
-    log "Tokenizer already exists, skipping tok_train/tok_eval"
-fi
+python -m scripts.tok_train
+python -m scripts.tok_eval
 
 log "Starting base pretraining"
 torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- \
