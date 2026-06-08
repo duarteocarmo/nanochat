@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Portuguese d8 pretraining run.
-# Trains a depth-8 base model for 2,434 * 524,288 = 1,276,116,992 tokens (~1,276M).
+# Trains a depth-8 base model for 3,333 * 524,288 = 1,747,451,904 tokens (~1,747.6M).
 # Run as:
 # bash runs/runptd8.sh
 # Optional overrides:
@@ -17,10 +17,10 @@ mkdir -p "$NANOCHAT_BASE_DIR"
 NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-32}"
 TOTAL_BATCH_SIZE=524288
-NUM_ITERATIONS=2434
-TARGET_PARAM_DATA_RATIO=30.42486
-WANDB_RUN="${WANDB_RUN:-d8_pt_1276m}"
-MODEL_TAG="${MODEL_TAG:-pt-d8-1276m}"
+NUM_ITERATIONS=3333
+TARGET_PARAM_DATA_RATIO=41.66231
+WANDB_RUN="${WANDB_RUN:-d8_pt_1748m}"
+MODEL_TAG="${MODEL_TAG:-pt-d8-1748m}"
 TRAIN_SHARDS="${TRAIN_SHARDS:-32}"
 
 TRAIN_EXTRA_ARGS=()
