@@ -1,26 +1,26 @@
 #!/bin/bash
 
-# Portuguese d8 pretraining run.
-# Trains a depth-8 base model for 3,333 * 524,288 = 1,747,451,904 tokens (~1,747.6M).
+# Portuguese d6 pretraining run.
+# Trains a depth-6 base model for 1,980 * 524,288 = 1,038,090,240 tokens (~1,038M).
 # Run as:
-# bash runs/runptd8.sh
+# bash runs/runptd6.sh
 # Optional overrides:
-# NPROC_PER_NODE=2 DEVICE_BATCH_SIZE=16 WANDB_RUN=my_run MODEL_TAG=my_tag bash runs/runptd8.sh
-# USE_FP8=1 bash runs/runptd8.sh  # H100+ only
+# NPROC_PER_NODE=2 DEVICE_BATCH_SIZE=32 WANDB_RUN=my_run MODEL_TAG=my_tag bash runs/runptd6.sh
+# USE_FP8=1 bash runs/runptd6.sh  # H100/H200 only
 
 set -euo pipefail
 
 export OMP_NUM_THREADS=1
-export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat-pt-d8}"
+export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat-pt-d6}"
 mkdir -p "$NANOCHAT_BASE_DIR"
 
 NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-32}"
 TOTAL_BATCH_SIZE=524288
-NUM_ITERATIONS=3333
-TARGET_PARAM_DATA_RATIO=41.66231
-WANDB_RUN="${WANDB_RUN:-d8_pt_1748m}"
-MODEL_TAG="${MODEL_TAG:-pt-d8-1748m}"
+NUM_ITERATIONS=1980
+TARGET_PARAM_DATA_RATIO=44.74555
+WANDB_RUN="${WANDB_RUN:-d6_pt_1038m}"
+MODEL_TAG="${MODEL_TAG:-pt-d6-1038m}"
 TRAIN_SHARDS="${TRAIN_SHARDS:-32}"
 
 TRAIN_EXTRA_ARGS=()
@@ -44,10 +44,10 @@ python -m scripts.tok_eval
 
 wait $DATASET_DOWNLOAD_PID
 
-# Base model pretraining only. The target ratio is set to the actual d8 token/scaling-param ratio
+# Base model pretraining only. The target ratio is set to the actual d6 token/scaling-param ratio
 # so LR/weight-decay scaling sees the intended horizon even though num_iterations fixes it exactly.
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -- \
-    --depth=8 \
+    --depth=6 \
     --target-param-data-ratio="$TARGET_PARAM_DATA_RATIO" \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
     --num-iterations="$NUM_ITERATIONS" \

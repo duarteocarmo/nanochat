@@ -29,3 +29,8 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 
 - Added a context-length fallback to `dev/translate_dataset.py` that catches vLLM/OpenAI-compatible 400 errors, splits only the overlong message text on natural boundaries, retries chunks recursively, and rejoins translated chunks.
 - Added tests for context-length error detection, natural-boundary splitting, and split-and-retry translation behavior.
+
+## 2026-06-08: d6/d8 PT training scripts
+
+- Added `runs/runptd6.sh` for a single-GPU d6 Portuguese pretraining run targeting ~1,038M tokens.
+- Updated `runs/runptd8.sh` defaults for single-GPU use and ~1,747.6M-token d8 training.
