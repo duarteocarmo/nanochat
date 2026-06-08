@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Portuguese single-H100 ~60 minute run.
+# Portuguese single-H200 ~60 minute run.
 # Defaults are intentionally conservative for wall-clock time.
-# Run as: WANDB_RUN=my-run bash runs/runpth10060m.sh
+# Run as: WANDB_RUN=my-run bash runs/runpth20060m.sh
 
 set -euo pipefail
 
@@ -15,10 +15,10 @@ fi
 RUN_TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
 
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
-export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat-pt-h100-60m}"
+export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat-pt-h200-60m}"
 
-WANDB_RUN="${WANDB_RUN:-pt-h100-$RUN_TIMESTAMP}"
-MODEL_TAG="${MODEL_TAG:-pt-h100-d10-$RUN_TIMESTAMP}"
+WANDB_RUN="${WANDB_RUN:-pt-h200-$RUN_TIMESTAMP}"
+MODEL_TAG="${MODEL_TAG:-pt-h200-d10-$RUN_TIMESTAMP}"
 
 mkdir -p "$NANOCHAT_BASE_DIR"
 
@@ -26,7 +26,7 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-log "PT H100 60m run"
+log "PT H200 60m run"
 log "base_dir=$NANOCHAT_BASE_DIR"
 log "model_tag=$MODEL_TAG depth=10 target_flops=1.5e17 sft_steps=300 eval_every=200 ptcore_every=250 sample_every=200"
 
@@ -44,7 +44,7 @@ python -m scripts.tok_eval
 log "Starting base pretraining"
 torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- \
     --depth=10 \
-    --device-batch-size=64 \
+    --device-batch-size=128 \
     --target-flops=1.5e17 \
     --fp8 \
     --core-metric-name=ptcore \
@@ -61,13 +61,13 @@ torchrun --standalone --nproc_per_node=1 -m scripts.base_eval -- \
     --model-tag="$MODEL_TAG" \
     --eval=ptcore,bpb,sample \
     --ptcore-split=val \
-    --device-batch-size=16 \
+    --device-batch-size=32 \
     --split-tokens=4194304
 
 log "Starting PT SFT"
 torchrun --standalone --nproc_per_node=1 -m scripts.chat_sft -- \
     --model-tag="$MODEL_TAG" \
-    --device-batch-size=16 \
+    --device-batch-size=32 \
     --total-batch-size=131072 \
     --eval-every=150 \
     --eval-tokens=1048576 \
