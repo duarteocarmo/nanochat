@@ -16,7 +16,7 @@
 - [x] Run tiny PT SFT on CPU/MPS.
 - [ ] Add an equivalent of ChatCORE for the sft part in Portuguese
 - [ ] Test PT chat via `chat_cli`.
-- [ ] Create one end-to-end `runs/runptcpu.sh` script.
+- [x] Create one end-to-end `runs/runptcpu.sh` script.
 - [ ] Verify fresh local CPU/MPS run completes end-to-end.
 - [ ] Estimate model sizes for depth/vocab options.
 - [ ] Estimate usable Bagaço token budget.
