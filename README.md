@@ -48,6 +48,7 @@ baseline, and averages the centered scores:
 - Linguistic acceptability: [`duarteocarmo/scala-pt`](https://huggingface.co/datasets/duarteocarmo/scala-pt); 1,024 train / 256 val / 2,048 test / 5,998 full_train rows; random baseline 0.50; European Portuguese grammar signal, mapped to `correta` / `incorreta`.
 - Knowledge: [`duarteocarmo/mmlu-pt-mini`](https://huggingface.co/datasets/duarteocarmo/mmlu-pt-mini); 1,024 train / 256 val / 2,048 test rows; random baseline 0.25; 4-way multiple choice with `a`-`d` labels.
 - Commonsense reasoning: [`duarteocarmo/goldenswag-pt-mini`](https://huggingface.co/datasets/duarteocarmo/goldenswag-pt-mini); 672 train / 256 val / 2,048 test rows; random baseline 0.25; 4-way multiple choice with `a`-`d` labels.
+- Basic Portugal QA: [`duarteocarmo/portugal-basic-qa-ptcore`](https://huggingface.co/datasets/duarteocarmo/portugal-basic-qa-ptcore); 50 val rows; random baseline 0.333; 3-way multiple choice with European Portuguese prompts and `a`-`c` labels.
 
 ![nanochat logo](dev/nanochat.png)
 ![scaling laws](dev/scaling_laws_jan26.png)

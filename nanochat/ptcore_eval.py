@@ -29,6 +29,11 @@ PTCORE_TASKS = [
         "dataset_id": "duarteocarmo/goldenswag-pt-mini",
         "random_baseline": 0.25,
     },
+    {
+        "label": "portugal-basic-qa-pt",
+        "dataset_id": "duarteocarmo/portugal-basic-qa-ptcore",
+        "random_baseline": 1 / 3,
+    },
 ]
 
 LABEL_CHOICES = {
@@ -60,6 +65,18 @@ def convert_ptcore_row(task_label, row):
         return {
             "query": f"{row['text']}\nResposta:",
             "choices": LETTER_CHOICES,
+            "gold": LETTER_LABELS[row["label"]],
+        }
+
+    if task_label == "portugal-basic-qa-pt":
+        choices = list(row["choices"])
+        letters = LETTER_CHOICES[: len(choices)]
+        option_lines = "\n".join(
+            f"{letter}) {choice}" for letter, choice in zip(letters, choices)
+        )
+        return {
+            "query": f"Pergunta: {row['question']}\n{option_lines}\nResposta:",
+            "choices": letters,
             "gold": LETTER_LABELS[row["label"]],
         }
 
