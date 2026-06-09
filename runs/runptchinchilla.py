@@ -23,21 +23,6 @@ GREEN = "\033[1;32m"
 RESET = "\033[0m"
 
 
-def openai_flops_per_token(n_layers, n_heads, d_model, n_ctx, n_vocab, ff_ratio=4):
-    """OpenAI-style forward-pass FLOPs per token for a decoder-only Transformer."""
-    d_attn = d_model // n_heads
-    d_ff = d_model * ff_ratio
-
-    embeddings = 4 * d_model
-    attn_qkv = 2 * n_layers * d_model * 3 * (d_attn * n_heads)
-    attn_mask = 2 * n_layers * n_ctx * (d_attn * n_heads)
-    attn_project = 2 * n_layers * (d_attn * n_heads) * d_model
-    ff = 2 * n_layers * 2 * d_model * d_ff
-    logits = 2 * d_model * n_vocab
-
-    return embeddings + attn_qkv + attn_mask + attn_project + ff + logits
-
-
 def format_row(row, best):
     marker = "*" if row is best else " "
     line = (
@@ -96,14 +81,9 @@ def main():
             model = GPT(config=config)
         counts = model.num_scaling_params()
         scaling_params = counts["transformer_matrices"] + counts["lm_head"]
-        forward_flops_per_token = openai_flops_per_token(
-            n_layers=depth,
-            n_heads=num_heads,
-            d_model=model_dim,
-            n_ctx=sequence_len,
-            n_vocab=vocab_size,
-        )
-        training_flops_per_token = 3 * forward_flops_per_token
+        # estimate_flops() returns forward+backward FLOPs/token (6N + attention),
+        # the same function base_train.py uses for live MFU/tok_per_sec.
+        training_flops_per_token = model.estimate_flops()
         train_tokens = compute_budget / training_flops_per_token
         ratio = train_tokens / scaling_params
         score = abs(math.log(ratio / args.ratio))
@@ -113,7 +93,6 @@ def main():
             "heads": num_heads,
             "params": counts["total"],
             "scaling_params": scaling_params,
-            "forward_flops_per_token": forward_flops_per_token,
             "training_flops_per_token": training_flops_per_token,
             "tokens": train_tokens,
             "ratio": ratio,
@@ -125,7 +104,7 @@ def main():
 
     print(f"Compute budget: {compute_budget:.3e} FLOPs ({args.tflops:g} TFLOPS × {args.hours:g}h)")
     print(f"Target ratio: {args.ratio:g} train tokens / scaling param")
-    print("FLOPs method: OpenAI forward-pass count × 3 for training")
+    print("FLOPs method: nanochat estimate_flops() forward+backward (matches base_train)")
     print()
     print("Example calculation for d2:")
     print(
@@ -135,12 +114,7 @@ def main():
     print(f"  total params = {example['params'] / 1e6:.1f}M")
     print(f"  scaling params = transformer_matrices + lm_head = {example['scaling_params'] / 1e6:.1f}M")
     print(
-        f"  forward FLOPs/token = OpenAI formula = "
-        f"{example['forward_flops_per_token']:.3e} FLOPs/token"
-    )
-    print(
-        f"  training FLOPs/token = 3 × forward FLOPs/token = "
-        f"3 × {example['forward_flops_per_token']:.3e} = "
+        f"  training FLOPs/token = estimate_flops() (forward + backward) = "
         f"{example['training_flops_per_token']:.3e} FLOPs/token "
         f"({example['training_flops_per_token'] / 1e9:.3f}G)"
     )
@@ -157,7 +131,7 @@ def main():
     print()
     print(
         f"{'':1} {'depth':>5} {'dim':>5} {'params':>10} {'scaling':>10} "
-        f"{'OpenAI train FLOPs/tok':>23} {'train tokens':>13} {'tokens/scaling':>15}"
+        f"{'train FLOPs/tok':>23} {'train tokens':>13} {'tokens/scaling':>15}"
     )
     print(
         f"{'':1} {'-' * 5:>5} {'-' * 5:>5} {'-' * 10:>10} {'-' * 10:>10} "
