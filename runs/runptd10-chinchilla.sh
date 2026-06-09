@@ -1,26 +1,26 @@
 #!/bin/bash
 
-# Chinchilla-style Portuguese d8 pretraining run.
-# Trains a depth-8 base model at ~20 train tokens per scaling parameter:
-# 1,600 * 524,288 = 838,860,800 tokens (~838.9M).
+# Chinchilla-style Portuguese d10 pretraining run.
+# Trains a depth-10 base model at ~20 train tokens per scaling parameter:
+# 2,675 * 524,288 = 1,402,470,400 tokens (~1,402.5M).
 # Run as:
-# bash runs/runptd8-chinchilla.sh
+# bash runs/runptd10-chinchilla.sh
 
 set -euo pipefail
 
 export OMP_NUM_THREADS=1
-export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat-pt-d8-chinchilla"
+export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat-pt-d10-chinchilla"
 mkdir -p "$NANOCHAT_BASE_DIR"
 
 NPROC_PER_NODE=1
 DEVICE_BATCH_SIZE=32
 TOTAL_BATCH_SIZE=524288
 TARGET_PARAM_DATA_RATIO=20
-CORE_METRIC_EVERY=400
-SAMPLE_EVERY=400
-WANDB_RUN=d8_pt_chinchilla
-MODEL_TAG=pt-d8-chinchilla
-TRAIN_SHARDS=20
+CORE_METRIC_EVERY=500
+SAMPLE_EVERY=500
+WANDB_RUN=d10_pt_chinchilla
+MODEL_TAG=pt-d10-chinchilla
+TRAIN_SHARDS=32
 
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 [ -d ".venv" ] || uv venv
@@ -41,7 +41,7 @@ wait $DATASET_DOWNLOAD_PID
 # Base model pretraining only. PTCORE is evaluated during training and at the end.
 # Final base_eval also prints conditioned and unconditioned samples.
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -- \
-    --depth=8 \
+    --depth=10 \
     --target-param-data-ratio="$TARGET_PARAM_DATA_RATIO" \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
     --device-batch-size="$DEVICE_BATCH_SIZE" \

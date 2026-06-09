@@ -69,14 +69,9 @@ def convert_ptcore_row(task_label, row):
         }
 
     if task_label == "portugal-basic-qa-pt":
-        choices = list(row["choices"])
-        letters = LETTER_CHOICES[: len(choices)]
-        option_lines = "\n".join(
-            f"{letter}) {choice}" for letter, choice in zip(letters, choices)
-        )
         return {
-            "query": f"Pergunta: {row['question']}\n{option_lines}\nResposta:",
-            "choices": letters,
+            "query": f"Pergunta: {row['question']}\nResposta:",
+            "choices": list(row["choices"]),
             "gold": LETTER_LABELS[row["label"]],
         }
 

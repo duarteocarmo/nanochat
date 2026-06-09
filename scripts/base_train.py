@@ -202,7 +202,6 @@ def disable_fp8(model):
     CastConfig is a frozen dataclass, so we can't mutate scaling_type. Instead,
     we swap out Float8Linear modules entirely and restore them after.
     """
-    import torch.nn as nn
 
     # Find all Float8Linear modules and their locations
     fp8_locations = []  # list of (parent_module, attr_name, fp8_module)
@@ -253,7 +252,7 @@ model = torch.compile(model, dynamic=False) # the inputs to model will never cha
 
 # Get the parameter counts of our model
 param_counts = model.num_scaling_params()
-print0(f"Parameter counts:")
+print0("Parameter counts:")
 for key, value in param_counts.items():
     print0(f"{key:24s}: {value:,}")
 num_params = param_counts['total']
@@ -461,7 +460,6 @@ while True:
             "step": step,
             "total_training_flops": flops_so_far,
             metric_key: results[metric_key],
-            "centered_results": results["centered_results"],
             f"{args.core_metric_name}_centered_results": results["centered_results"],
         })
         model.train()
