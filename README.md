@@ -18,11 +18,17 @@
 - [ ] Test PT chat via `chat_cli`.
 - [x] Create one end-to-end `runs/runptcpu.sh` script.
 - [ ] Verify fresh local CPU/MPS run completes end-to-end.
-- [ ] Estimate model sizes for depth/vocab options.
-- [ ] Estimate usable Bagaço token budget.
-- [ ] Sketch first real `$200` training config.
+- [x] Estimate model sizes for depth/vocab options.
+- [x] Estimate usable Bagaço token budget.
+- [x] Sketch first real `$200` training config.
 - [x] Plan future EuroEval integration.
 - [x] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
+- [x] Add a basic Portugal QA task to PTCORE.
+- [x] Run Chinchilla-style d8 and d10 PT pretraining baselines.
+- [ ] Reformat `scala-pt` prompt and re-check whether it moves above random.
+- [ ] Reduce final `base_eval` batch size for d10+ runs to avoid BPB OOM.
+- [ ] Run a d10 ratio-30 overtraining comparison.
+- [ ] Run a d12 Chinchilla baseline if d10 ratio-30 is promising.
 - [ ] Plan future PT/EN data-mix ablations.
 
 

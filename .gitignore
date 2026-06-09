@@ -13,3 +13,5 @@ CLAUDE.md
 wandb/
 /.DS_Store
 /runs/set_env_vars.sh
+/.envrc
+/logs/.DS_Store

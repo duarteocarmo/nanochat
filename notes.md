@@ -34,3 +34,16 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 
 - Added `runs/runptd6.sh` for a single-GPU d6 Portuguese pretraining run targeting ~1,038M tokens.
 - Updated `runs/runptd8.sh` defaults for single-GPU use and ~1,747.6M-token d8 training.
+
+## 2026-06-09: Chinchilla d8/d10 PTCORE findings
+
+- Added a basic Portugal QA PTCORE dataset on Hugging Face: `duarteocarmo/portugal-basic-qa-ptcore`.
+- Added `portugal-basic-qa-pt` to PTCORE and temporarily disabled `mmlu-pt` / `goldenswag-pt` to focus on cheaper PT signals.
+- Changed Portugal QA scoring from letter completions (`Resposta: b`) to answer-text completions (`Resposta: Lisboa`). This fixed the random/fixed-letter behavior seen in d8.
+- d8 Chinchilla run on RTX 5090: 125.8M params, 838.9M tokens, ratio ~20, final val bpb 0.9614, PTCORE 0.1023 with old Portugal QA scoring. Logs are in `logs/chinchillad8/`.
+- d10 Chinchilla run on RTX 5090: 196.0M params, 1.402B tokens, ratio ~20, final val bpb 0.9015, PTCORE 0.3740. Logs are in `logs/chinchillad10/`.
+- d10 final PTCORE task scores: `sst2-pt` 71.1% raw / 0.4219 centered, `scala-pt` 50.0% / 0.0 centered, `portugal-basic-qa-pt` 80.0% / 0.7000 centered.
+- `scala-pt` appears too hard or poorly prompted for base-model 0-shot eval; next step is to reformat the prompt to explicitly ask whether the quoted sentence is grammatically correct or incorrect.
+- d10 validation bpb improved through the final eval, so the model was not saturated. Consider d10 ratio 30 before jumping to d12.
+- Final `base_eval` OOMed during BPB with `device_batch_size=32`; reduce final eval batch size to 8 or 4 in future d10+ scripts.
+- Removed duplicate wandb logging of generic `centered_results`; use namespaced `ptcore_centered_results` / `core_centered_results` only.
