@@ -19,16 +19,16 @@ PTCORE_TASKS = [
         "dataset_id": "duarteocarmo/scala-pt",
         "random_baseline": 0.50,
     },
-    {
-        "label": "mmlu-pt",
-        "dataset_id": "duarteocarmo/mmlu-pt-mini",
-        "random_baseline": 0.25,
-    },
-    {
-        "label": "goldenswag-pt",
-        "dataset_id": "duarteocarmo/goldenswag-pt-mini",
-        "random_baseline": 0.25,
-    },
+    # {
+    #     "label": "mmlu-pt",
+    #     "dataset_id": "duarteocarmo/mmlu-pt-mini",
+    #     "random_baseline": 0.25,
+    # },
+    # {
+    #     "label": "goldenswag-pt",
+    #     "dataset_id": "duarteocarmo/goldenswag-pt-mini",
+    #     "random_baseline": 0.25,
+    # },
     {
         "label": "portugal-basic-qa-pt",
         "dataset_id": "duarteocarmo/portugal-basic-qa-ptcore",
