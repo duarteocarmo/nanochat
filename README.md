@@ -11,12 +11,15 @@
 - [x] Run tiny PT pretraining on CPU/MPS with CORE disabled.
 - [x] Add Portuguese base-model sample prompts.
 - [x] Publish finalized PT-PT SmolTalk2 SFT datasets on Hugging Face.
+- [x] Add [`duarteocarmo/PT-Culture_Data`](https://huggingface.co/datasets/duarteocarmo/PT-Culture_Data) as a PT culture SFT dataset.
+- [ ] Add a quick validation/eval prompt set for the PT culture SFT dataset.
 - [x] Translate/adapt PT-PT SFT datasets from SmolTalk/MMLU/GSM8K-style sources.
 - [x] Adapt SFT to run PT-only without default English datasets.
 - [x] Run tiny PT SFT on CPU/MPS.
 - [ ] Add an equivalent of ChatCORE for the sft part in Portuguese
 - [ ] Test PT chat via `chat_cli`.
 - [x] Create one end-to-end `runs/runptcpu.sh` script.
+- [x] Create `runs/runptlocaltest.sh` as the tiny local PT pipeline gate before GPU scripts.
 - [ ] Verify fresh local CPU/MPS run completes end-to-end.
 - [x] Estimate model sizes for depth/vocab options.
 - [x] Estimate usable Bagaço token budget.
@@ -25,7 +28,8 @@
 - [x] Build/adapt a Portuguese replacement for CORE, e.g. “PTCORE”.
 - [x] Add a basic Portugal QA task to PTCORE.
 - [x] Run Chinchilla-style d8 and d10 PT pretraining baselines.
-- [ ] Reformat `scala-pt` prompt and re-check whether it moves above random.
+- [x] Reformat `scala-pt` prompt to use an explicit grammar instruction and quoted sentence.
+- [ ] Re-check whether reformatted `scala-pt` moves above random.
 - [ ] Reduce final `base_eval` batch size for d10+ runs to avoid BPB OOM.
 - [ ] Run a d10 ratio-30 overtraining comparison.
 - [ ] Run a d12 Chinchilla baseline if d10 ratio-30 is promising.
@@ -40,6 +44,7 @@ The PT-PT SFT datasets are translated from selected [`HuggingFaceTB/smoltalk2`](
 - `magpie_ultra`: 47,500 train / 2,500 test rows; translated from [`smoltalk_smollm3_smol_magpie_ultra_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_magpie_ultra_no_think).
 - `tulu_personas`: 28,470 train / 1,500 test rows; translated from [`tulu_3_sft_personas_instruction_following_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/tulu_3_sft_personas_instruction_following_no_think).
 - `smol_rewrite`: 28,500 train / 1,500 test rows; translated from [`smoltalk_smollm3_smol_rewrite_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_rewrite_no_think).
+- `PT-Culture_Data`: Portuguese culture rows from [`duarteocarmo/PT-Culture_Data`](https://huggingface.co/datasets/duarteocarmo/PT-Culture_Data), converted from `conversations` (`human`/`gpt`) to `messages` (`user`/`assistant`) by [`tasks/pt_culture.py`](tasks/pt_culture.py). The train/test split is deterministic by `_seed_id` to avoid leaking the same cultural fact into both splits.
 
 ### PTCORE Datasets
 

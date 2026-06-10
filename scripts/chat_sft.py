@@ -26,6 +26,7 @@ from nanochat.engine import Engine
 from scripts.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
+from tasks.pt_culture import PTCulture
 from tasks.smoltalk2_pt import SmolTalk2PT
 
 # -----------------------------------------------------------------------------
@@ -156,16 +157,18 @@ for group in optimizer.param_groups:
 # SFT data mixture and DataLoader
 train_dataset = TaskMixture([
     SmolTalk2PT(subset="everyday_conversations", split="train"),
-    SmolTalk2PT(subset="magpie_ultra", split="train"),
-    SmolTalk2PT(subset="tulu_personas", split="train"),
-    SmolTalk2PT(subset="smol_rewrite", split="train"),
+    PTCulture(split="train"),
+    # SmolTalk2PT(subset="magpie_ultra", split="train"),
+    # SmolTalk2PT(subset="tulu_personas", split="train"),
+    # SmolTalk2PT(subset="smol_rewrite", split="train"),
 ])
 print0(f"Training mixture: {len(train_dataset):,} PT-PT rows")
 val_dataset = TaskMixture([
     SmolTalk2PT(subset="everyday_conversations", split="test"),
-    SmolTalk2PT(subset="magpie_ultra", split="test"),
-    SmolTalk2PT(subset="tulu_personas", split="test"),
-    SmolTalk2PT(subset="smol_rewrite", split="test"),
+    PTCulture(split="test"),
+    # SmolTalk2PT(subset="magpie_ultra", split="test"),
+    # SmolTalk2PT(subset="tulu_personas", split="test"),
+    # SmolTalk2PT(subset="smol_rewrite", split="test"),
 ])
 # DataLoader is defined here, it emits inputs, targets : 2D tensors of shape (device_batch_size, max_seq_len)
 # A big problem is that we don't know the final num_iterations in advance. So we create

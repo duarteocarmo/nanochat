@@ -56,7 +56,11 @@ def convert_ptcore_row(task_label, row):
     if task_label == "scala-pt":
         choices, labels = LABEL_CHOICES[task_label]
         return {
-            "query": f"Frase: {row['text']}\nA frase está:",
+            "query": (
+                "Lê a seguinte frase e diz se está gramaticalmente correta ou incorreta.\n\n"
+                f"Frase:\n\"\"\"\n{row['text']}\n\"\"\"\n\n"
+                "A frase está gramaticalmente"
+            ),
             "choices": choices,
             "gold": labels[row["label"]],
         }
