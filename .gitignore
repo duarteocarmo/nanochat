@@ -15,3 +15,4 @@ wandb/
 /runs/set_env_vars.sh
 /.envrc
 /logs/.DS_Store
+/runs/.DS_Store
