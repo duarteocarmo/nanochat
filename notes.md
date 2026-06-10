@@ -48,3 +48,5 @@ Last commit: `b7a1177 Add Portuguese nanochat setup notes`
 - Removed duplicate wandb logging of generic `centered_results`; use namespaced `ptcore_centered_results` / `core_centered_results` only.
 - Added `duarteocarmo/PT-Culture_Data` as an SFT task, converting `human`/`gpt` conversations to `user`/`assistant` messages and splitting train/test by `_seed_id` to avoid fact leakage.
 - Renamed the tiny local smoke script to `runs/runptlocaltest.sh` and made it the first gate for new PT pipeline steps: tiny tokenizer, base train/eval, SFT, chat CLI, report generation, with future speedrun steps commented out.
+- Added `PT-PortugalBasicQA` as the first Portuguese `chat_eval` task and wired a tiny smoke eval into `runs/runptlocaltest.sh`.
+- Renamed Portuguese task files/classes to use the `pt_` / `PT` convention, e.g. `tasks/pt_smoltalk2.py`, `PTSmolTalk2`, and `tasks/pt_portugal_basic_qa_chat.py`.

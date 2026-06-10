@@ -13,13 +13,13 @@ SUBSETS = (
 )
 
 
-class SmolTalk2PT(Task):
+class PTSmolTalk2(Task):
     """Translated SmolTalk2 PT-PT dataset with train/test splits."""
 
     def __init__(self, subset: str, split: str, **kwargs):
         super().__init__(**kwargs)
-        assert subset in SUBSETS, f"SmolTalk2PT subset must be one of {SUBSETS}"
-        assert split in ["train", "test"], "SmolTalk2PT split must be train|test"
+        assert subset in SUBSETS, f"PTSmolTalk2 subset must be one of {SUBSETS}"
+        assert split in ["train", "test"], "PTSmolTalk2 split must be train|test"
         self.subset = subset
         self.split = split
         self.ds = load_dataset(DATASET_ID, subset, split=split).shuffle(seed=42)
@@ -35,7 +35,7 @@ class SmolTalk2PT(Task):
         if isinstance(custom_instructions, str) and custom_instructions.strip():
             messages = [{"role": "system", "content": custom_instructions.strip()}, *messages]
 
-        assert len(messages) >= 2, "SmolTalk2PT messages must have at least 2 messages"
+        assert len(messages) >= 2, "PTSmolTalk2 messages must have at least 2 messages"
         if messages[0]["role"] == "system":
             rest_messages = messages[1:]
         else:

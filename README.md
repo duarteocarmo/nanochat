@@ -17,6 +17,7 @@
 - [x] Adapt SFT to run PT-only without default English datasets.
 - [x] Run tiny PT SFT on CPU/MPS.
 - [ ] Add an equivalent of ChatCORE for the sft part in Portuguese
+- [x] Add `PT-PortugalBasicQA` as the first Portuguese `chat_eval` task.
 - [ ] Test PT chat via `chat_cli`.
 - [x] Create one end-to-end `runs/runptcpu.sh` script.
 - [x] Create `runs/runptlocaltest.sh` as the tiny local PT pipeline gate before GPU scripts.
@@ -40,11 +41,15 @@
 
 The PT-PT SFT datasets are translated from selected [`HuggingFaceTB/smoltalk2`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2) SFT splits using [`Infomaniak-AI/vllm-translategemma-4b-it`](https://huggingface.co/Infomaniak-AI/vllm-translategemma-4b-it). They are republished for SFT as [`duarteocarmo/smoltalk2PT`](https://huggingface.co/datasets/duarteocarmo/smoltalk2PT), with deterministic train/test splits per subset.
 
+`PT-PortugalBasicQA` is also available as the first Portuguese `chat_eval` task. It reuses [`duarteocarmo/portugal-basic-qa-ptcore`](https://huggingface.co/datasets/duarteocarmo/portugal-basic-qa-ptcore) as chat-style multiple choice and scores a single answer letter.
+
 - `everyday_conversations`: 2,060 train / 200 test rows; translated from [`smoltalk_smollm3_everyday_conversations_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_everyday_conversations_no_think).
 - `magpie_ultra`: 47,500 train / 2,500 test rows; translated from [`smoltalk_smollm3_smol_magpie_ultra_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_magpie_ultra_no_think).
 - `tulu_personas`: 28,470 train / 1,500 test rows; translated from [`tulu_3_sft_personas_instruction_following_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/tulu_3_sft_personas_instruction_following_no_think).
 - `smol_rewrite`: 28,500 train / 1,500 test rows; translated from [`smoltalk_smollm3_smol_rewrite_no_think`](https://huggingface.co/datasets/HuggingFaceTB/smoltalk2/viewer/SFT/smoltalk_smollm3_smol_rewrite_no_think).
 - `PT-Culture_Data`: Portuguese culture rows from [`duarteocarmo/PT-Culture_Data`](https://huggingface.co/datasets/duarteocarmo/PT-Culture_Data), converted from `conversations` (`human`/`gpt`) to `messages` (`user`/`assistant`) by [`tasks/pt_culture.py`](tasks/pt_culture.py). The train/test split is deterministic by `_seed_id` to avoid leaking the same cultural fact into both splits.
+
+Portuguese task files under [`tasks/`](tasks/) use a `pt_` prefix and their task classes / `chat_eval` names start with `PT`.
 
 ### PTCORE Datasets
 

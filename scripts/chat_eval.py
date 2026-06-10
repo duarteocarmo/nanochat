@@ -22,6 +22,7 @@ from tasks.mmlu import MMLU
 from tasks.arc import ARC
 from tasks.gsm8k import GSM8K
 from tasks.spellingbee import SpellingBee
+from tasks.pt_portugal_basic_qa_chat import PTPortugalBasicQAChat
 
 # -----------------------------------------------------------------------------
 # Generative evaluation loop (we go one problem at a time, sample, evaluate)
@@ -165,6 +166,7 @@ def run_chat_eval(task_name, model, tokenizer, engine,
         'ARC-Challenge': partial(ARC, subset="ARC-Challenge", split="test"),
         'GSM8K': partial(GSM8K, subset="main", split="test"),
         'SpellingBee': partial(SpellingBee, size=256, split="test"),
+        'PT-PortugalBasicQA': partial(PTPortugalBasicQAChat, split="val"),
     }[task_name]
     task_object = task_module()
     # Run the evaluation
@@ -209,6 +211,7 @@ if __name__ == "__main__":
         'GSM8K': 0.0, # open-ended => 0%
         'HumanEval': 0.0, # open-ended => 0%
         'SpellingBee': 0.0, # open-ended => 0%
+        'PT-PortugalBasicQA': 1 / 3, # multiple choice 1 of 3 => 33%
     }
     task_names = all_tasks if args.task_name is None else args.task_name.split('|')
 

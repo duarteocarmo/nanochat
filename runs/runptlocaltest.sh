@@ -15,15 +15,15 @@ mkdir -p "$NANOCHAT_BASE_DIR"
 WANDB_RUN=dummy
 MODEL_TAG=pt-localtest
 TRAIN_SHARDS=1
-TOKENIZER_MAX_CHARS=2000000
+TOKENIZER_MAX_CHARS=200000000
 VOCAB_SIZE=4096
 DEVICE_BATCH_SIZE=2
 TOTAL_BATCH_SIZE=256
 MAX_SEQ_LEN=128
 EVAL_TOKENS=1024
 SPLIT_TOKENS=1024
-BASE_STEPS=100
-SFT_STEPS=100
+BASE_STEPS=500
+SFT_STEPS=200
 
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 [ -d ".venv" ] || uv venv
@@ -48,7 +48,7 @@ python -m scripts.base_train \
     --eval-every=5 \
     --eval-tokens="$EVAL_TOKENS" \
     --core-metric-name=ptcore \
-    --core-metric-every=50 \
+    --core-metric-every=250 \
     --core-metric-max-per-task=1 \
     --ptcore-split=val \
     --sample-every=5 \
@@ -83,15 +83,17 @@ python -m scripts.chat_cli \
     --model-tag="$MODEL_TAG" \
     --prompt="Olá! Quem és tu?"
 
+# Tiny PT chat eval smoke check.
+python -m scripts.chat_eval \
+    --source=sft \
+    --model-tag="$MODEL_TAG" \
+    --task-name=PT-PortugalBasicQA \
+    --batch-size=1 \
+    --max-problems=3
+
 # Future speedrun steps. Keep commented until PT-specific versions are wired.
 # curl -L -o "$NANOCHAT_BASE_DIR/identity_conversations.jsonl" \
 #     https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
-# python -m scripts.chat_eval \
-#     --source=sft \
-#     --model-tag="$MODEL_TAG" \
-#     --task-name=ARC-Easy \
-#     --batch-size=1 \
-#     --max-problems=1
 # python -m scripts.chat_web --model-tag="$MODEL_TAG"
 
 python -m nanochat.report generate
