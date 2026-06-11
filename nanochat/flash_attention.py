@@ -1,20 +1,26 @@
 """
-Unified Flash Attention interface with automatic FA3/SDPA switching.
+Unified Flash Attention interface with automatic FA4/FA3/SDPA switching.
 
-Exports `flash_attn` module that matches the FA3 API exactly, but falls back
-to PyTorch SDPA on non-Hopper GPUs (including Blackwell), MPS, and CPU.
-
-Usage (drop-in replacement for FA3):
-    from nanochat.flash_attention import flash_attn
-
-    # Training (no KV cache)
-    y = flash_attn.flash_attn_func(q, k, v, causal=True, window_size=window_size)
-
-    # Inference (with KV cache)
-    y = flash_attn.flash_attn_with_kvcache(q, k_cache, v_cache, k=k, v=v, ...)
+Exports `flash_attn` module that matches the FA3 API exactly, uses FA4 on
+post-Hopper GPUs when installed, and falls back to PyTorch SDPA elsewhere.
 """
 import torch
 import torch.nn.functional as F
+from types import SimpleNamespace
+
+
+def _load_flash_attention_4():
+    """Try to load Flash Attention 4 on post-Hopper GPUs."""
+    if not torch.cuda.is_available():
+        return None
+    try:
+        major, _ = torch.cuda.get_device_capability()
+        if major <= 9:
+            return None
+        from kernels import get_kernel
+        return get_kernel("kernels-community/flash-attn4")
+    except Exception:
+        return None
 
 
 # =============================================================================
@@ -27,7 +33,6 @@ def _load_flash_attention_3():
     try:
         major, _ = torch.cuda.get_device_capability()
         # FA3 kernels are compiled for Hopper (sm90) only
-        # Ada (sm89), Blackwell (sm100) need SDPA fallback until FA3 is recompiled
         if major != 9:
             return None
         import os
@@ -38,11 +43,25 @@ def _load_flash_attention_3():
         return None
 
 
+_fa4 = _load_flash_attention_4()
 _fa3 = _load_flash_attention_3()
+HAS_FA4 = _fa4 is not None
 HAS_FA3 = _fa3 is not None
 
-# Override for testing: set to 'fa3', 'sdpa', or None (auto)
+# Override for testing: set to 'fa4', 'fa3', 'sdpa', or None (auto)
 _override_impl = None
+
+
+def _resolve_use_fa4():
+    if _override_impl == 'fa4':
+        assert HAS_FA4, "Cannot override to FA4: not available on this hardware"
+        return True
+    if _override_impl in {'fa3', 'sdpa'}:
+        return False
+    if HAS_FA4:
+        from nanochat.common import COMPUTE_DTYPE
+        return COMPUTE_DTYPE in {torch.bfloat16, torch.float16}
+    return False
 
 
 def _resolve_use_fa3():
@@ -50,7 +69,7 @@ def _resolve_use_fa3():
     if _override_impl == 'fa3':
         assert HAS_FA3, "Cannot override to FA3: not available on this hardware"
         return True
-    if _override_impl == 'sdpa':
+    if _override_impl in {'fa4', 'sdpa'}:
         return False
     if HAS_FA3:
         # FA3 Hopper kernels only support bf16 and fp8; fp16/fp32 must use SDPA fallback
@@ -60,6 +79,8 @@ def _resolve_use_fa3():
         return False
     return False
 
+
+USE_FA4 = _resolve_use_fa4()
 USE_FA3 = _resolve_use_fa3()
 
 
@@ -101,6 +122,7 @@ def _sdpa_attention(q, k, v, window_size, enable_gqa):
 
     return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, enable_gqa=enable_gqa)
 
+
 # =============================================================================
 # Public API: Same interface as FA3
 # =============================================================================
@@ -116,6 +138,9 @@ def flash_attn_func(q, k, v, causal=False, window_size=(-1, -1)):
     Returns:
         Output tensor of shape (B, T, H, D)
     """
+    if USE_FA4:
+        fa4_window_size = tuple(None if value < 0 else value for value in window_size)
+        return _fa4.flash_attn_func(q, k, v, causal=causal, window_size=fa4_window_size)
     if USE_FA3:
         return _fa3.flash_attn_func(q, k, v, causal=causal, window_size=window_size)
 
@@ -173,14 +198,12 @@ def flash_attn_with_kvcache(q, k_cache, v_cache, k=None, v=None, cache_seqlens=N
 
     enable_gqa = q_sdpa.size(1) != k_sdpa.size(1)
     y_sdpa = _sdpa_attention(q_sdpa, k_sdpa, v_sdpa, window_size, enable_gqa)
-
     return y_sdpa.transpose(1, 2)  # back to (B, T, H, D)
 
 
 # =============================================================================
 # Export: flash_attn module interface (drop-in replacement for FA3)
 # =============================================================================
-from types import SimpleNamespace
 flash_attn = SimpleNamespace(
     flash_attn_func=flash_attn_func,
     flash_attn_with_kvcache=flash_attn_with_kvcache,
