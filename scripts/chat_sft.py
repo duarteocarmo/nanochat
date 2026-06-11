@@ -158,17 +158,17 @@ for group in optimizer.param_groups:
 train_dataset = TaskMixture([
     PTSmolTalk2(subset="everyday_conversations", split="train"),
     PTCulture(split="train"),
-    # PTSmolTalk2(subset="magpie_ultra", split="train"),
-    # PTSmolTalk2(subset="tulu_personas", split="train"),
-    # PTSmolTalk2(subset="smol_rewrite", split="train"),
+    PTSmolTalk2(subset="tulu_personas", split="train"),
+    PTSmolTalk2(subset="smol_rewrite", split="train"),
+    PTSmolTalk2(subset="magpie_ultra", split="train"),
 ])
 print0(f"Training mixture: {len(train_dataset):,} PT-PT rows")
 val_dataset = TaskMixture([
     PTSmolTalk2(subset="everyday_conversations", split="test"),
     PTCulture(split="test"),
-    # PTSmolTalk2(subset="magpie_ultra", split="test"),
-    # PTSmolTalk2(subset="tulu_personas", split="test"),
-    # PTSmolTalk2(subset="smol_rewrite", split="test"),
+    PTSmolTalk2(subset="tulu_personas", split="test"),
+    PTSmolTalk2(subset="smol_rewrite", split="test"),
+    PTSmolTalk2(subset="magpie_ultra", split="test"),
 ])
 # DataLoader is defined here, it emits inputs, targets : 2D tensors of shape (device_batch_size, max_seq_len)
 # A big problem is that we don't know the final num_iterations in advance. So we create
