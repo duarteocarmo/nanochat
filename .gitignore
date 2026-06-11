@@ -16,3 +16,4 @@ wandb/
 /.envrc
 /logs/.DS_Store
 /runs/.DS_Store
+/logs

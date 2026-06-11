@@ -19,14 +19,17 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.8",
+    "polars>=1.41.2",
     "pytest>=8.0.0",
     "python-dotenv>=1.2.1",
     "transformers>=4.57.3",
 ]
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
