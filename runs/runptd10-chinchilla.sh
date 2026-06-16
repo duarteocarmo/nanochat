@@ -13,7 +13,7 @@ export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat-pt-d10-chinchilla"
 mkdir -p "$NANOCHAT_BASE_DIR"
 
 # Shared run settings.
-NPROC_PER_NODE=1
+NPROC_PER_NODE=${NPROC_PER_NODE:-1}
 MODEL_TAG=pt-d10-chinchilla
 PTCORE_SPLIT=val
 RUN_TIMESTAMP=$(date +%y%m%d%H%M)
