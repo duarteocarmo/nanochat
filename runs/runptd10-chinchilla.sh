@@ -17,6 +17,8 @@ NPROC_PER_NODE=${NPROC_PER_NODE:-1}
 MODEL_TAG=pt-d10-chinchilla
 PTCORE_SPLIT=val
 RUN_TIMESTAMP=$(date +%y%m%d%H%M)
+HF_BASE_REPO_ID=${HF_BASE_REPO_ID:-duarteocarmo/variacoes-d10-chinchilla-base}
+HF_SFT_REPO_ID=${HF_SFT_REPO_ID:-duarteocarmo/variacoes-d10-chinchilla-sft}
 
 # Dataset shards.
 DATASET_TOKENIZER_SHARDS=8
@@ -47,7 +49,7 @@ CHAT_SFT_DEVICE_BATCH_SIZE=16
 CHAT_SFT_TOTAL_BATCH_SIZE=524288
 CHAT_SFT_EVAL_EVERY=200
 CHAT_SFT_EVAL_TOKENS=4194304
-CHAT_SFT_CHATCORE_EVERY=-1
+CHAT_SFT_CHATCORE_EVERY=200
 CHAT_SFT_NUM_ITERATIONS=-1
 CHAT_SFT_WANDB_RUN=d10_pt_chinchilla_sft_$RUN_TIMESTAMP
 
@@ -90,6 +92,10 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -
     --model-tag="$MODEL_TAG" \
     --run="$BASE_TRAIN_WANDB_RUN"
 
+uvx --from huggingface_hub hf upload "$HF_BASE_REPO_ID" "$NANOCHAT_BASE_DIR/base_checkpoints/$MODEL_TAG" . \
+    --repo-type model \
+    --commit-message "Upload $MODEL_TAG base checkpoint"
+
 # Use a smaller eval batch than training to avoid BPB OOM during final full-logit eval.
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_eval -- \
     --model-tag="$MODEL_TAG" \
@@ -109,6 +115,10 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- 
     --num-iterations="$CHAT_SFT_NUM_ITERATIONS" \
     --run="$CHAT_SFT_WANDB_RUN"
 
+uvx --from huggingface_hub hf upload "$HF_SFT_REPO_ID" "$NANOCHAT_BASE_DIR/chatsft_checkpoints/$MODEL_TAG" . \
+    --repo-type model \
+    --commit-message "Upload $MODEL_TAG SFT checkpoint"
+
 # Quick qualitative chat sample from the SFT checkpoint.
 python -m scripts.chat_cli \
     --source=sft \
@@ -123,3 +133,7 @@ python -m scripts.chat_eval \
     --batch-size="$CHAT_EVAL_BATCH_SIZE"
 
 python -m nanochat.report generate
+python -m scripts.wandb_upload_report \
+    --project=nanochat-sft \
+    --run="$CHAT_SFT_WANDB_RUN" \
+    --path="$NANOCHAT_BASE_DIR/report/report.md"

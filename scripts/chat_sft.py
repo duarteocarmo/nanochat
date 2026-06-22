@@ -57,7 +57,7 @@ parser.add_argument("--final-lr-frac", type=float, default=0.0, help="final LR a
 # Evaluation
 parser.add_argument("--eval-every", type=int, default=200, help="evaluate val bpb every N steps (-1 = disable)")
 parser.add_argument("--eval-tokens", type=int, default=40*524288, help="number of tokens to evaluate val loss on")
-parser.add_argument("--chatcore-every", type=int, default=-1, help="evaluate English ChatCORE metric every N steps (-1 = disable)")
+parser.add_argument("--chatcore-every", type=int, default=-1, help="evaluate Portuguese ChatCORE metric every N steps (-1 = disable)")
 parser.add_argument("--chatcore-max-cat", type=int, default=-1, help="max problems per categorical task for ChatCORE")
 parser.add_argument("--chatcore-max-sample", type=int, default=24, help="max problems per generative task for ChatCORE")
 args = parser.parse_args()
@@ -358,11 +358,10 @@ while True:
     if args.chatcore_every > 0 and (last_step or (step > 0 and step % args.chatcore_every == 0)):
         model.eval()
         engine = Engine(orig_model, tokenizer)
-        all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval', 'SpellingBee']
-        categorical_tasks = {'ARC-Easy', 'ARC-Challenge', 'MMLU'}
+        all_tasks = ['PT-PortugalBasicQA']
+        categorical_tasks = {'PT-PortugalBasicQA'}
         baseline_accuracies = {
-            'ARC-Easy': 0.25, 'ARC-Challenge': 0.25, 'MMLU': 0.25,
-            'GSM8K': 0.0, 'HumanEval': 0.0, 'SpellingBee': 0.0,
+            'PT-PortugalBasicQA': 1 / 3,
         }
         task_results = {}
         for task_name in all_tasks:
