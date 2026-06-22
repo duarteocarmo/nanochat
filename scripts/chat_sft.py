@@ -156,11 +156,11 @@ for group in optimizer.param_groups:
 
 # SFT data mixture and DataLoader
 train_dataset = TaskMixture([
-    *[PTSmolTalk2(subset="everyday_conversations", split="train") for _ in range(4)],
-    *[PTCulture(split="train") for _ in range(4)],
-    *[PTSmolTalk2(subset="tulu_personas", split="train") for _ in range(1)],
-    *[PTSmolTalk2(subset="smol_rewrite", split="train") for _ in range(1)],
-    *[PTSmolTalk2(subset="magpie_ultra", split="train") for _ in range(1)],
+    *[PTSmolTalk2(subset="everyday_conversations", split="train") for _ in range(8)],
+    *[PTCulture(split="train") for _ in range(8)],
+    *[PTSmolTalk2(subset="tulu_personas", split="train") for _ in range(2)],
+    *[PTSmolTalk2(subset="smol_rewrite", split="train") for _ in range(2)],
+    *[PTSmolTalk2(subset="magpie_ultra", split="train") for _ in range(2)],
 ])
 print0(f"Training mixture: {len(train_dataset):,} PT-PT rows (oversampled)")
 val_dataset = TaskMixture([

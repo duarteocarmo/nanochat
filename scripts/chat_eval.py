@@ -22,7 +22,7 @@ from tasks.mmlu import MMLU
 from tasks.arc import ARC
 from tasks.gsm8k import GSM8K
 from tasks.spellingbee import SpellingBee
-from tasks.pt_portugal_basic_qa_chat import PTPortugalBasicQAChat
+from tasks.pt_portugal_basic_qa_chat import PTPortugalBasicQAAnswerChat, PTPortugalBasicQAChat
 
 # -----------------------------------------------------------------------------
 # Generative evaluation loop (we go one problem at a time, sample, evaluate)
@@ -86,6 +86,33 @@ def run_generative_eval(task_object, tokenizer, model, engine, num_samples, max_
 # A lot easier because we don't have to sample. Therefore, we can actually go
 # batches at a time and just check the logits for correct answer choices.
 
+def predict_categorical_choice(conversation, tokenizer, model, device):
+    prompt_ids = tokenizer.render_for_completion(conversation)
+    choices = conversation["choices"]
+    choice_ids = [tokenizer.encode(choice) for choice in choices]
+    candidate_ids = [prompt_ids + ids for ids in choice_ids]
+    max_length = max(len(ids) for ids in candidate_ids)
+    bos = tokenizer.get_bos_token_id()
+    padded_candidate_ids = [ids + [bos] * (max_length - len(ids)) for ids in candidate_ids]
+    input_ids = torch.tensor(padded_candidate_ids, dtype=torch.long, device=device)
+
+    with torch.no_grad():
+        logits = model(input_ids)
+
+    target_ids = torch.roll(input_ids, shifts=-1, dims=1)
+    losses = torch.nn.functional.cross_entropy(
+        logits.reshape(-1, logits.size(-1)),
+        target_ids.reshape(-1),
+        reduction="none",
+    ).view(input_ids.size(0), input_ids.size(1))
+    prompt_length = len(prompt_ids)
+    mean_losses = [
+        losses[idx, prompt_length - 1:len(ids) - 1].mean().item()
+        for idx, ids in enumerate(candidate_ids)
+    ]
+    return choices[mean_losses.index(min(mean_losses))]
+
+
 def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=None):
 
     ddp, ddp_rank, ddp_local_rank, ddp_world_size = get_dist_info()
@@ -105,6 +132,14 @@ def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems
 
         # Prepare the batch of problems. They might all be of different length, so we pad/collate them.
         conversations = [task_object[ii] for ii in range(i0, i1)]
+        if "choices" in conversations[0] and "letters" not in conversations[0]:
+            for conversation in conversations:
+                predicted_answer = predict_categorical_choice(conversation, tokenizer, model, device)
+                outcome = task_object.evaluate(conversation, predicted_answer)
+                num_passed += int(outcome)
+                total += 1
+            continue
+
         prompt_ids = [tokenizer.render_for_completion(conversation) for conversation in conversations] # TODO: remake the way this works
         max_length = max(len(ids) for ids in prompt_ids)
         answer_time_positions = [len(ids) - 1 for ids in prompt_ids] # where the last token is (and the predicted answer)
@@ -166,7 +201,8 @@ def run_chat_eval(task_name, model, tokenizer, engine,
         'ARC-Challenge': partial(ARC, subset="ARC-Challenge", split="test"),
         'GSM8K': partial(GSM8K, subset="main", split="test"),
         'SpellingBee': partial(SpellingBee, size=256, split="test"),
-        'PT-PortugalBasicQA': partial(PTPortugalBasicQAChat, split="val"),
+        'PT-PortugalBasicQA': partial(PTPortugalBasicQAAnswerChat, split="val"),
+        'PT-PortugalBasicQA-Letter': partial(PTPortugalBasicQAChat, split="val"),
     }[task_name]
     task_object = task_module()
     # Run the evaluation
@@ -212,6 +248,7 @@ if __name__ == "__main__":
         'HumanEval': 0.0, # open-ended => 0%
         'SpellingBee': 0.0, # open-ended => 0%
         'PT-PortugalBasicQA': 1 / 3, # multiple choice 1 of 3 => 33%
+        'PT-PortugalBasicQA-Letter': 1 / 3, # multiple choice 1 of 3 => 33%
     }
     task_names = all_tasks if args.task_name is None else args.task_name.split('|')
 
