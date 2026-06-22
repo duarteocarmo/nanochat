@@ -348,6 +348,7 @@ while True:
             "step": step,
             "total_training_flops": flops_so_far,
             "total_training_time": total_training_time,
+            "train/total_tokens": args.total_batch_size * step,
             "val/bpb": val_bpb,
         })
         model.train()
@@ -380,6 +381,7 @@ while True:
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
+            "train/total_tokens": args.total_batch_size * step,
             "chatcore_metric": chatcore,
             "chatcore_cat": chatcore_cat,
             **{f"chatcore/{task_name}": acc for task_name, acc in task_results.items()},
@@ -470,6 +472,7 @@ while True:
             "step": step,
             "total_training_flops": flops_so_far,
             "total_training_time": total_training_time,
+            "train/total_tokens": args.total_batch_size * step,
             "train/loss": debiased_smooth_loss,
             "train/lrm": lrm,
             "train/dt": dt,

@@ -433,6 +433,9 @@ while True:
             "step": step,
             "total_training_flops": flops_so_far,
             "total_training_time": total_training_time,
+            "train/tokens_trained": total_batch_size * step,
+            "train/total_tokens": total_batch_size * step,
+            "train/target_tokens": total_tokens,
             "val/bpb": val_bpb,
         })
         model.train()
@@ -459,6 +462,10 @@ while True:
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
+            "total_training_time": total_training_time,
+            "train/tokens_trained": total_batch_size * step,
+            "train/total_tokens": total_batch_size * step,
+            "train/target_tokens": total_tokens,
             metric_key: results[metric_key],
             f"{args.core_metric_name}_centered_results": results["centered_results"],
         })
@@ -582,6 +589,9 @@ while True:
             "step": step,
             "total_training_flops": flops_so_far,
             "total_training_time": total_training_time,
+            "train/tokens_trained": total_batch_size * step,
+            "train/total_tokens": total_batch_size * step,
+            "train/target_tokens": total_tokens,
             "train/loss": debiased_smooth_loss,
             "train/lrm": lrm,
             "train/dt": dt,
