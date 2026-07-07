@@ -20,11 +20,11 @@ from nanochat.common import get_base_dir
 # The specifics of the current pretraining dataset
 
 # The URL on the internet where the data is hosted and downloaded from on demand
-BASE_URL = "https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle/resolve/main"
-MAX_SHARD = 6542 # the last datashard is shard_06542.parquet
+BASE_URL = "https://huggingface.co/datasets/duarteocarmo/bagaco2-30b-shuffle/resolve/main"
+MAX_SHARD = 359 # the last datashard is shard_00359.parquet
 index_to_filename = lambda index: f"shard_{index:05d}.parquet" # format of the filenames
 base_dir = get_base_dir()
-DATA_DIR = os.path.join(base_dir, "base_data_climbmix")
+DATA_DIR = os.path.join(base_dir, "base_data_bagaco2")
 
 # -----------------------------------------------------------------------------
 # These functions are useful utilities to other modules, can/should be imported
@@ -33,29 +33,11 @@ def list_parquet_files(data_dir=None, warn_on_legacy=False):
     """ Looks into a data dir and returns full paths to all parquet files. """
     data_dir = DATA_DIR if data_dir is None else data_dir
 
-    # Legacy-supporting code due to the upgrade from FinewebEdu-100B to ClimbMix-400B
-    # This code will eventually be deleted.
     if not os.path.exists(data_dir):
-        if warn_on_legacy:
-            print()
-            print("=" * 80)
-            print("  WARNING: DATASET UPGRADE REQUIRED")
-            print("=" * 80)
-            print()
-            print(f"  Could not find: {data_dir}")
-            print()
-            print("  nanochat recently switched from FinewebEdu-100B to ClimbMix-400B.")
-            print("  Everyone who does `git pull` as of March 4, 2026 is expected to see this message.")
-            print("  To upgrade to the new ClimbMix-400B dataset, run these two commands:")
-            print()
-            print("    python -m nanochat.dataset -n 170     # download ~170 shards, enough for GPT-2, adjust as desired")
-            print("    python -m scripts.tok_train           # re-train tokenizer on new ClimbMix data")
-            print()
-            print("  For now, falling back to your old FinewebEdu-100B dataset...")
-            print("=" * 80)
-            print()
-        # attempt a fallback to the legacy data directory
-        data_dir = os.path.join(base_dir, "base_data")
+        raise FileNotFoundError(
+            f"Could not find {data_dir}. Download Bagaço2 shards with: "
+            "python -m nanochat.dataset -n 170"
+        )
 
     parquet_files = sorted([
         f for f in os.listdir(data_dir)

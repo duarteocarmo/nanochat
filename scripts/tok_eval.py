@@ -143,6 +143,10 @@ science_text = r"""
 Photosynthesis is a photochemical energy transduction process in which light-harvesting pigment–protein complexes within the thylakoid membranes of oxygenic phototrophs absorb photons and initiate charge separation at the reaction center, driving the linear electron transport chain from water to NADP⁺ via photosystem II, the cytochrome b₆f complex, and photosystem I, concomitantly generating a trans-thylakoid proton motive force utilized by chloroplastic ATP synthase. The light-dependent reactions produce ATP and NADPH, which fuel the Calvin–Benson–Bassham cycle in the stroma, wherein ribulose-1,5-bisphosphate is carboxylated by ribulose-1,5-bisphosphate carboxylase/oxygenase (RuBisCO) to form 3-phosphoglycerate, subsequently reduced and regenerated through a series of enzymatic steps, enabling net assimilation of CO₂ into triose phosphates and ultimately carbohydrates. This process is tightly regulated by photoprotective mechanisms, redox feedback, and metabolite flux, representing a central biochemical pathway coupling solar energy capture to the biosphere’s primary productivity.
 """.strip()
 
+portuguese_text = r"""
+Um grupo de pais e encarregados de educação lançou uma petição pública online a pedir a anulação dos exames nacionais, "sem prejuízo dos alunos". Os signatários manifestam "profunda preocupação e indignação perante as falhas graves e amplamente reconhecidas no processo de digitalização e classificação eletrónica das provas", pelo que solicitam "a intervenção urgente das entidades competentes". Ao final da manhã terça-feira, 7 de julho, a petição tinha mais de 4800 assinaturas. "Os pais não contestam a modernização. Contestam a implementação apressada, sem testes adequados, que colocou em risco um dos processos mais sensíveis da vida escolar dos nossos filhos", lê-se no documento. Os peticionários entendem que a única saída é mesmo a anualção. Consideram que "se não for possível garantir, de forma imediata e inequívoca, a correção integral e rigorosa das provas, então a única solução justa, proporcional e juridicamente segura é a anulação dos Exames Nacionais 2026 sem qualquer prejuízo para os alunos".
+""".strip()
+
 # The tokenizer was trained on data from earlier shards, so it has seen this data
 train_docs = next(parquets_iter_batched(split="train"))
 train_text = "\n".join(train_docs)
@@ -152,13 +156,14 @@ val_text = "\n".join(val_docs)
 all_text = [
     ("news", news_text),
     ("korean", korean_text),
+    ("portuguese", portuguese_text),
     ("code", code_text),
     ("math", math_text),
     ("science", science_text),
-    ("climbmix-train", train_text),
+    ("bagaco2-train", train_text),
 ]
 if val_text:
-    all_text.append(("climbmix-val", val_text))
+    all_text.append(("bagaco2-val", val_text))
 
 # Try out current default compared to GPT-2 and GPT-4 tokenizers
 tokenizer_results = {}
