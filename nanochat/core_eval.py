@@ -241,7 +241,7 @@ def evaluate_example(idx, model, tokenizer, data, device, task_meta):
     return is_correct
 
 
-def evaluate_task(model, tokenizer, data, device, task_meta):
+def evaluate_task(model, tokenizer, data, device, task_meta, return_stats=False) -> float | tuple[float, dict]:
     """
     This function is responsible for evaluating one task across many examples.
     It also handles dispatch to all processes if the script is run with torchrun.
@@ -259,4 +259,6 @@ def evaluate_task(model, tokenizer, data, device, task_meta):
         dist.all_reduce(correct, op=dist.ReduceOp.SUM)
     # compute the mean
     mean_correct = correct.mean().item()
+    if return_stats:
+        return mean_correct, {"num_eval": len(data), "num_total": len(data)}
     return mean_correct
