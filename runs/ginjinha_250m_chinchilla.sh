@@ -66,6 +66,7 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -
     --model-tag="$MODEL_TAG" \
     --depth=11 \
     --target-param-data-ratio=20 \
+    --core-metric-every=1000 \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
     $FP8_ARG \
     --run="$WANDB_RUN"
