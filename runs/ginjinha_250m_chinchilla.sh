@@ -15,7 +15,13 @@ mkdir -p "$NANOCHAT_BASE_DIR"
 
 MODEL_TAG="${MODEL_TAG:-ginjinha_250m_chinchilla}"
 WANDB_RUN="${WANDB_RUN:-dummy}"
-NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
+if [ -z "${NPROC_PER_NODE:-}" ]; then
+    NPROC_PER_NODE=$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$NPROC_PER_NODE" = "0" ]; then
+        NPROC_PER_NODE=1
+    fi
+fi
+echo "Using $NPROC_PER_NODE GPU process(es)"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-16}"
 
 # -----------------------------------------------------------------------------
