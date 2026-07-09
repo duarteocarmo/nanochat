@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Train a ~250M parameter Portuguese base model on the Bagaço2 pretraining stack.
 # This follows speedrun.sh, but stops after base_eval: tokenizer -> pretrain -> PTCORE/BPB/sample eval.
@@ -23,6 +24,14 @@ if [ -z "${NPROC_PER_NODE:-}" ]; then
 fi
 echo "Using $NPROC_PER_NODE GPU process(es)"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-16}"
+FP8_ARG=""
+GPU_NAMES="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
+if echo "$GPU_NAMES" | grep -q "H100"; then
+    FP8_ARG="--fp8"
+    echo "FP8 enabled"
+else
+    echo "FP8 disabled"
+fi
 
 # -----------------------------------------------------------------------------
 # Python venv setup with uv
@@ -58,7 +67,7 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -
     --depth=11 \
     --target-param-data-ratio=20 \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
-    --fp8 \
+    $FP8_ARG \
     --run="$WANDB_RUN"
 
 # Evaluate: PTCORE, BPB on train/val, and samples.
