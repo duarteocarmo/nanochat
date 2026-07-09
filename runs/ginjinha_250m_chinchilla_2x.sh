@@ -1,0 +1,77 @@
+#!/bin/bash
+set -euo pipefail
+
+# Train a ~250M parameter Portuguese base model on the Bagaço2 pretraining stack.
+# This is the 2x-data variant of ginjinha_250m_chinchilla.sh: tokenizer -> pretrain -> PTCORE/BPB/sample eval.
+#
+# Run:
+#   bash runs/ginjinha_250m_chinchilla_2x.sh
+#
+# With wandb:
+#   WANDB_RUN=ginjinha_250m_chinchilla_2x bash runs/ginjinha_250m_chinchilla_2x.sh
+
+export OMP_NUM_THREADS=1
+export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat}"
+mkdir -p "$NANOCHAT_BASE_DIR"
+
+MODEL_TAG="${MODEL_TAG:-ginjinha_250m_chinchilla_2x}"
+WANDB_RUN="${WANDB_RUN:-dummy}"
+if [ -z "${NPROC_PER_NODE:-}" ]; then
+    NPROC_PER_NODE=$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$NPROC_PER_NODE" = "0" ]; then
+        NPROC_PER_NODE=1
+    fi
+fi
+echo "Using $NPROC_PER_NODE GPU process(es)"
+DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-16}"
+FP8_ARG=""
+GPU_NAMES="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
+if echo "$GPU_NAMES" | grep -q "H100"; then
+    FP8_ARG="--fp8"
+    echo "FP8 enabled"
+else
+    echo "FP8 disabled"
+fi
+
+# -----------------------------------------------------------------------------
+# Python venv setup with uv
+
+command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+[ -d ".venv" ] || uv venv
+uv sync --extra gpu
+source .venv/bin/activate
+
+# -----------------------------------------------------------------------------
+# Tokenizer
+
+# Download the first ~2B chars for tokenizer training.
+python -m nanochat.dataset -n 8
+
+# Download enough Bagaço2 shards for the 2x Chinchilla run while tokenizer trains.
+python -m nanochat.dataset -n 340 &
+DATASET_DOWNLOAD_PID=$!
+
+python -m scripts.tok_train
+python -m scripts.tok_eval
+
+# -----------------------------------------------------------------------------
+# Base model pretraining
+
+echo "Waiting for dataset download to complete..."
+wait $DATASET_DOWNLOAD_PID
+
+# ~280M params with default width/head settings. 2x Chinchilla target: 40 tokens per parameter.
+torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -- \
+    --model-tag="$MODEL_TAG" \
+    --depth=11 \
+    --target-param-data-ratio=40 \
+    --core-metric-every=1000 \
+    --device-batch-size="$DEVICE_BATCH_SIZE" \
+    $FP8_ARG \
+    --run="$WANDB_RUN"
+
+# Evaluate: PTCORE, BPB on train/val, and samples.
+torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_eval -- \
+    --model-tag="$MODEL_TAG" \
+    --device-batch-size="$DEVICE_BATCH_SIZE"
