@@ -429,8 +429,8 @@ while True:
             min_val_bpb = val_bpb
         wandb_run.log({
             "step": step,
-            "total_training_flops": flops_so_far,
-            "total_training_time": total_training_time,
+            "train/total_training_flops": flops_so_far,
+            "train/total_training_time": total_training_time,
             "val/bpb": val_bpb,
         })
         model.train()
@@ -444,12 +444,14 @@ while True:
         with disable_fp8(orig_model):
             results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task)
         print0(f"Step {step:05d} | PTCORE metric: {results['core_metric']:.4f}")
-        wandb_run.log({
+        core_log_data = {
             "step": step,
-            "total_training_flops": flops_so_far,
-            "core_metric": results["core_metric"],
-            "centered_results": results["centered_results"],
-        })
+            "train/total_training_flops": flops_so_far,
+            "core/metric": results["core_metric"],
+        }
+        core_log_data.update({f"core/accuracy/{key}": value for key, value in results["results"].items()})
+        core_log_data.update({f"core/centered/{key}": value for key, value in results["centered_results"].items()})
+        wandb_run.log(core_log_data)
         model.train()
 
     # once in a while: sample from the model (only on master process)
@@ -457,13 +459,13 @@ while True:
     if args.sample_every > 0 and master_process and (last_step or (step > 0 and step % args.sample_every == 0)):
         model.eval()
         prompts = [
-            "The capital of France is",
-            "The chemical symbol of gold is",
-            "If yesterday was Friday, then tomorrow will be",
-            "The opposite of hot is",
-            "The planets of the solar system are:",
-            "My favorite color is",
-            "If 5*x + 3 = 13, then x is",
+            "A capital de França é",
+            "O símbolo químico do ouro é",
+            "Se ontem foi sexta-feira, então amanhã será",
+            "O contrário de quente é",
+            "Os planetas do sistema solar são:",
+            "A minha cor preferida é",
+            "O plural de cão é",
         ]
         engine = Engine(orig_model, tokenizer) # use orig_model to avoid recompilation
         for prompt in prompts:
@@ -568,10 +570,10 @@ while True:
     if step % 100 == 0:
         log_data = {
             "step": step,
-            "total_training_flops": flops_so_far,
-            "total_training_time": total_training_time,
+            "train/total_training_flops": flops_so_far,
+            "train/total_training_time": total_training_time,
             "train/loss": debiased_smooth_loss,
-            "train/lrm": lrm,
+            "train/lr_multiplier": lrm,
             "train/dt": dt,
             "train/tok_per_sec": tok_per_sec,
             "train/mfu": mfu,
