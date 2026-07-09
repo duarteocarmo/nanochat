@@ -36,7 +36,7 @@ python -m nanochat.dataset -n 8
 python -m nanochat.dataset -n 170 &
 DATASET_DOWNLOAD_PID=$!
 
-python -m scripts.tok_train --max-chars=2000000000 --vocab-size=32768
+python -m scripts.tok_train
 python -m scripts.tok_eval
 
 # -----------------------------------------------------------------------------
