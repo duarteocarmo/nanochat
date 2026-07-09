@@ -28,6 +28,7 @@ DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-16}"
 # Python venv setup with uv
 
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 [ -d ".venv" ] || uv venv
 uv sync --extra gpu
 source .venv/bin/activate
