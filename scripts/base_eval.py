@@ -19,7 +19,9 @@ Examples:
 import os
 import argparse
 
-from nanochat.common import compute_init, compute_cleanup, print0, get_base_dir, autodetect_device_type
+import wandb
+
+from nanochat.common import compute_init, compute_cleanup, print0, get_base_dir, autodetect_device_type, DummyWandb
 from nanochat.tokenizer import get_token_bytes
 from nanochat.checkpoint_manager import load_model
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit
@@ -46,6 +48,7 @@ def main():
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
     parser.add_argument('--split-tokens', type=int, default=40*524288, help='Number of tokens to evaluate per split for BPB')
     parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps (empty = autodetect)')
+    parser.add_argument('--run', type=str, default='dummy', help="wandb run name ('dummy' disables wandb logging)")
     args = parser.parse_args()
 
     # Parse evaluation modes
@@ -68,10 +71,20 @@ def main():
     print0(f"Evaluating model: {model_name}")
     print0(f"Eval modes: {', '.join(sorted(eval_modes))}")
 
+    use_dummy_wandb = args.run == "dummy" or ddp_rank != 0
+    wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(
+        project="ginjinha",
+        name=args.run,
+        id=meta.get("wandb_run_id"),
+        resume="allow",
+        config=vars(args),
+    )
+
     # Results to log
     core_results = None
     bpb_results = {}
     samples = []
+    sample_rows = []
     unconditioned_samples = []
 
     # --- Sampling ---
@@ -81,13 +94,13 @@ def main():
         print0("="*80)
         if ddp_rank == 0:
             prompts = [
-                "The capital of France is",
-                "The chemical symbol of gold is",
-                "If yesterday was Friday, then tomorrow will be",
-                "The opposite of hot is",
-                "The planets of the solar system are:",
-                "My favorite color is",
-                "If 5*x + 3 = 13, then x is",
+                "A capital de França é",
+                "O símbolo químico do ouro é",
+                "Se ontem foi sexta-feira, então amanhã será",
+                "O contrário de quente é",
+                "Os planetas do sistema solar são:",
+                "A minha cor preferida é",
+                "O plural de cão é",
             ]
             engine = Engine(model, tokenizer)
             print0("\nConditioned samples:")
@@ -98,6 +111,7 @@ def main():
                 print0("-" * 80)
                 print0(sample_str)
                 samples.append(sample_str)
+                sample_rows.append((prompt, sample_str))
 
             print0("\nUnconditioned samples:")
             tokens = tokenizer("", prepend="<|bos|>")
@@ -127,6 +141,7 @@ def main():
             print0(f"{split_name} bpb: {bpb:.6f}")
 
     # --- PTCORE evaluation ---
+    output_csv_path = None
     if 'core' in eval_modes:
         print0("\n" + "="*80)
         print0("PTCORE Evaluation")
@@ -148,6 +163,36 @@ def main():
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"PTCORE metric: {core_results['core_metric']:.4f}")
 
+    if ddp_rank == 0:
+        log_data = {"step": meta["step"]}
+        if "train" in bpb_results:
+            log_data["train/bpb"] = bpb_results["train"]
+        if "val" in bpb_results:
+            log_data["val/bpb"] = bpb_results["val"]
+        if core_results:
+            log_data["core/metric"] = core_results["core_metric"]
+            log_data.update({f"core/accuracy/{key}": value for key, value in core_results["results"].items()})
+            log_data.update({f"core/centered/{key}": value for key, value in core_results["centered_results"].items()})
+        wandb_run.log(log_data)
+
+        if not use_dummy_wandb and sample_rows:
+            conditioned_table = wandb.Table(columns=["prompt", "sample"], data=sample_rows)
+            unconditioned_table = wandb.Table(
+                columns=["index", "sample"],
+                data=list(enumerate(unconditioned_samples)),
+            )
+            wandb_run.log({
+                "step": meta["step"],
+                "samples/conditioned": conditioned_table,
+                "samples/unconditioned": unconditioned_table,
+            })
+
+        if not use_dummy_wandb and output_csv_path:
+            artifact = wandb.Artifact(f"{model_slug}_base_eval", type="eval")
+            artifact.add_file(output_csv_path)
+            wandb_run.log_artifact(artifact)
+
+    wandb_run.finish()
     compute_cleanup()
 
 
