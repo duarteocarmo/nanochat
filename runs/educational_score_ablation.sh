@@ -7,25 +7,21 @@ set -euo pipefail
 # Run:
 #   bash runs/educational_score_ablation.sh
 #
-# With W&B:
-#   WANDB_RUN_PREFIX=ginjinha bash runs/educational_score_ablation.sh
 
 export OMP_NUM_THREADS=1
-export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat}"
+export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
 mkdir -p "$NANOCHAT_BASE_DIR"
 
-MODEL_TAG_PREFIX="${MODEL_TAG_PREFIX:-ginjinha}"
-WANDB_RUN_PREFIX="${WANDB_RUN_PREFIX:-dummy}"
-TARGET_PARAM_DATA_RATIO="${TARGET_PARAM_DATA_RATIO:-30}"
-NUM_TRAIN_SHARDS="${NUM_TRAIN_SHARDS:-170}"
-DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-16}"
-CORE_MAX_PER_TASK="${CORE_MAX_PER_TASK:-500}"
+MODEL_TAG_PREFIX="ginjinha"
+WANDB_RUN_PREFIX="ginjinha"
+TARGET_PARAM_DATA_RATIO="30"
+NUM_TRAIN_SHARDS="170"
+DEVICE_BATCH_SIZE="128"
+CORE_MAX_PER_TASK="500"
 
-if [ -z "${NPROC_PER_NODE:-}" ]; then
-    NPROC_PER_NODE=$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$NPROC_PER_NODE" = "0" ]; then
-        NPROC_PER_NODE=1
-    fi
+NPROC_PER_NODE=$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')
+if [ "$NPROC_PER_NODE" = "0" ]; then
+    NPROC_PER_NODE=1
 fi
 echo "Using $NPROC_PER_NODE GPU process(es)"
 
@@ -59,10 +55,7 @@ run_experiment() {
     local minimum_educational_score="$2"
     local experiment_name="d8_ratio${TARGET_PARAM_DATA_RATIO}_education_${education_filter}"
     local model_tag="${MODEL_TAG_PREFIX}_${experiment_name}"
-    local wandb_run="dummy"
-    if [ "$WANDB_RUN_PREFIX" != "dummy" ]; then
-        wandb_run="${WANDB_RUN_PREFIX}_${experiment_name}"
-    fi
+    local wandb_run="${WANDB_RUN_PREFIX}_${experiment_name}"
 
     echo "Running $model_tag with minimum educational score $minimum_educational_score"
     torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -- \
