@@ -72,20 +72,15 @@ def main():
     print0(f"Eval modes: {', '.join(sorted(eval_modes))}")
 
     use_dummy_wandb = args.run == "dummy" or ddp_rank != 0
+    wandb_run_id = meta.get("wandb_run_id")
+    if not use_dummy_wandb and not wandb_run_id:
+        raise RuntimeError("Checkpoint has no W&B run ID; cannot attach the evaluation artifact")
     wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(
         project="ginjinha",
-        name=args.run,
-        id=meta.get("wandb_run_id"),
-        resume="allow",
-        config=vars(args),
+        id=wandb_run_id,
+        resume="must",
+        settings=wandb.Settings(x_disable_stats=True),
     )
-
-    # Results to log
-    core_results = None
-    bpb_results = {}
-    samples = []
-    sample_rows = []
-    unconditioned_samples = []
 
     # --- Sampling ---
     if 'sample' in eval_modes:
@@ -110,8 +105,6 @@ def main():
                 sample_str = tokenizer.decode(sample[0])
                 print0("-" * 80)
                 print0(sample_str)
-                samples.append(sample_str)
-                sample_rows.append((prompt, sample_str))
 
             print0("\nUnconditioned samples:")
             tokens = tokenizer("", prepend="<|bos|>")
@@ -120,7 +113,6 @@ def main():
                 sample_str = tokenizer.decode(sample)
                 print0("-" * 80)
                 print0(sample_str)
-                unconditioned_samples.append(sample_str)
 
     # --- BPB evaluation ---
     if 'bpb' in eval_modes:
@@ -137,7 +129,6 @@ def main():
         for split_name in ["train", "val"]:
             loader = tokenizing_distributed_data_loader_bos_bestfit(tokenizer, args.device_batch_size, sequence_len, split_name, device=device)
             bpb = evaluate_bpb(model, loader, steps, token_bytes)
-            bpb_results[split_name] = bpb
             print0(f"{split_name} bpb: {bpb:.6f}")
 
     # --- PTCORE evaluation ---
@@ -163,34 +154,10 @@ def main():
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"PTCORE metric: {core_results['core_metric']:.4f}")
 
-    if ddp_rank == 0:
-        log_data = {"step": meta["step"]}
-        if "train" in bpb_results:
-            log_data["train/bpb"] = bpb_results["train"]
-        if "val" in bpb_results:
-            log_data["val/bpb"] = bpb_results["val"]
-        if core_results:
-            log_data["core/metric"] = core_results["core_metric"]
-            log_data.update({f"core/accuracy/{key}": value for key, value in core_results["results"].items()})
-            log_data.update({f"core/centered/{key}": value for key, value in core_results["centered_results"].items()})
-        wandb_run.log(log_data)
-
-        if not use_dummy_wandb and sample_rows:
-            conditioned_table = wandb.Table(columns=["prompt", "sample"], data=sample_rows)
-            unconditioned_table = wandb.Table(
-                columns=["index", "sample"],
-                data=list(enumerate(unconditioned_samples)),
-            )
-            wandb_run.log({
-                "step": meta["step"],
-                "samples/conditioned": conditioned_table,
-                "samples/unconditioned": unconditioned_table,
-            })
-
-        if not use_dummy_wandb and output_csv_path:
-            artifact = wandb.Artifact(f"{model_slug}_base_eval", type="eval")
-            artifact.add_file(output_csv_path)
-            wandb_run.log_artifact(artifact)
+    if ddp_rank == 0 and not use_dummy_wandb and output_csv_path:
+        artifact = wandb.Artifact(f"{model_slug}_base_eval", type="eval")
+        artifact.add_file(output_csv_path)
+        wandb_run.log_artifact(artifact)
 
     wandb_run.finish()
     compute_cleanup()

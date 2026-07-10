@@ -74,4 +74,5 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_train -
 # Evaluate: PTCORE, BPB on train/val, and samples.
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.base_eval -- \
     --model-tag="$MODEL_TAG" \
-    --device-batch-size="$DEVICE_BATCH_SIZE"
+    --device-batch-size="$DEVICE_BATCH_SIZE" \
+    --run="$WANDB_RUN"
