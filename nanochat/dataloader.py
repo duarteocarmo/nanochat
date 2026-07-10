@@ -17,12 +17,23 @@ https://github.com/karpathy/nanochat/blob/3c3a3d7/nanochat/dataloader.py#L78-L11
 """
 
 import torch
+import pyarrow.compute as pyarrow_compute
 import pyarrow.parquet as pq
 
 from nanochat.common import get_dist_info
 from nanochat.dataset import list_parquet_files
 
-def _document_batches(split, resume_state_dict, tokenizer_batch_size):
+
+def _texts_with_minimum_educational_score(row_group, minimum_educational_score):
+    if minimum_educational_score == -1:
+        return row_group.column("text").to_pylist()
+
+    educational_scores = row_group.column("educational_score")
+    score_mask = pyarrow_compute.greater_equal(educational_scores, minimum_educational_score)
+    return row_group.filter(mask=score_mask).column("text").to_pylist()
+
+
+def _document_batches(split, resume_state_dict, tokenizer_batch_size, minimum_educational_score=-1):
     """
     Infinite iterator over document batches (list of text strings) from parquet files.
 
@@ -30,6 +41,9 @@ def _document_batches(split, resume_state_dict, tokenizer_batch_size):
     where text_batch is a list of document strings, indices track position for resumption,
     and epoch counts how many times we've cycled through the dataset (starts at 1).
     """
+    if minimum_educational_score not in {-1, 0, 1, 2, 3, 4}:
+        raise ValueError("minimum_educational_score must be -1 or between 0 and 4")
+
     ddp, ddp_rank, ddp_local_rank, ddp_world_size = get_dist_info()
 
     warn_on_legacy = ddp_rank == 0 and split == "train" # rank 0 on train split will warn on legacy
@@ -61,8 +75,9 @@ def _document_batches(split, resume_state_dict, tokenizer_batch_size):
             else:
                 rg_idx = ddp_rank
             while rg_idx < pf.num_row_groups:
-                rg = pf.read_row_group(rg_idx)
-                batch = rg.column('text').to_pylist()
+                columns = ["text"] if minimum_educational_score == -1 else ["text", "educational_score"]
+                rg = pf.read_row_group(i=rg_idx, columns=columns)
+                batch = _texts_with_minimum_educational_score(rg, minimum_educational_score)
                 for i in range(0, len(batch), tokenizer_batch_size):
                     yield batch[i:i+tokenizer_batch_size], (pq_idx, rg_idx, epoch)
                 rg_idx += ddp_world_size
@@ -75,7 +90,7 @@ def tokenizing_distributed_data_loader_with_state_bos_bestfit(
     tokenizer, B, T, split,
     tokenizer_threads=4, tokenizer_batch_size=128,
     device="cuda", resume_state_dict=None,
-    buffer_size=1000
+    buffer_size=1000, minimum_educational_score=-1
 ):
     """
     BOS-aligned dataloader with Best-Fit Cropping.
@@ -96,7 +111,12 @@ def tokenizing_distributed_data_loader_with_state_bos_bestfit(
     assert split in ["train", "val"], "split must be 'train' or 'val'"
 
     row_capacity = T + 1
-    batches = _document_batches(split, resume_state_dict, tokenizer_batch_size)
+    batches = _document_batches(
+        split=split,
+        resume_state_dict=resume_state_dict,
+        tokenizer_batch_size=tokenizer_batch_size,
+        minimum_educational_score=minimum_educational_score,
+    )
     bos_token = tokenizer.get_bos_token_id()
     doc_buffer = []
     pq_idx, rg_idx, epoch = 0, 0, 1
