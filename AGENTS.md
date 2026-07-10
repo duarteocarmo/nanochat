@@ -1,0 +1,3 @@
+- when looking for machines, you use vastai or verda depending on what the user asks
+- make a table when looking for machine that informs user (location, type, cost)
+- make the changes locally - but ask before commiting or pushing
