@@ -1,4 +1,5 @@
 import importlib.util
+import io
 
 import httpx
 from pathlib import Path
@@ -108,6 +109,38 @@ def test_sampled_rows_respect_resume_and_limit(monkeypatch):
     )
 
     assert rows == [{"id": 3}, {"id": 8}]
+
+
+def test_fetch_dataset_rows_page_retries_transient_errors(monkeypatch):
+    calls = []
+    sleeps = []
+
+    def fake_urlopen(*, url, timeout):
+        calls.append({"url": url, "timeout": timeout})
+        if len(calls) == 1:
+            raise translate_dataset.urllib.error.HTTPError(
+                url=url,
+                code=502,
+                msg="Bad Gateway",
+                hdrs={},
+                fp=None,
+            )
+        return io.BytesIO(b'{"num_rows_total": 1, "rows": []}')
+
+    monkeypatch.setattr(translate_dataset.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(translate_dataset.time, "sleep", sleeps.append)
+
+    page = translate_dataset.fetch_dataset_rows_page(
+        dataset="dataset",
+        config="config",
+        split="split",
+        offset=10,
+        length=5,
+    )
+
+    assert page == {"num_rows_total": 1, "rows": []}
+    assert len(calls) == 2
+    assert sleeps == [1]
 
 
 def test_translate_text_does_not_limit_output_tokens():
