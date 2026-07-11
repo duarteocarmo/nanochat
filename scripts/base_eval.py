@@ -82,6 +82,9 @@ def main():
         settings=wandb.Settings(x_disable_stats=True),
     )
 
+    conditioned_samples = []
+    unconditioned_samples = []
+
     # --- Sampling ---
     if 'sample' in eval_modes:
         print0("\n" + "="*80)
@@ -105,6 +108,7 @@ def main():
                 sample_str = tokenizer.decode(sample[0])
                 print0("-" * 80)
                 print0(sample_str)
+                conditioned_samples.append((prompt, sample_str))
 
             print0("\nUnconditioned samples:")
             tokens = tokenizer("", prepend="<|bos|>")
@@ -113,6 +117,7 @@ def main():
                 sample_str = tokenizer.decode(sample)
                 print0("-" * 80)
                 print0(sample_str)
+                unconditioned_samples.append(sample_str)
 
     # --- BPB evaluation ---
     if 'bpb' in eval_modes:
@@ -153,6 +158,16 @@ def main():
                 f.write(f"{'PTCORE':<35}, {'':<10}, {core_results['core_metric']:<10.6f}\n")
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"PTCORE metric: {core_results['core_metric']:.4f}")
+
+    if ddp_rank == 0 and not use_dummy_wandb and conditioned_samples:
+        wandb_run.log({
+            "step": meta["step"],
+            "samples/conditioned": wandb.Table(columns=["prompt", "sample"], data=conditioned_samples),
+            "samples/unconditioned": wandb.Table(
+                columns=["index", "sample"],
+                data=list(enumerate(unconditioned_samples)),
+            ),
+        })
 
     if ddp_rank == 0 and not use_dummy_wandb and output_csv_path:
         artifact = wandb.Artifact(f"{model_slug}_base_eval", type="eval")
