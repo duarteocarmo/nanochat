@@ -31,12 +31,14 @@
 - [x] Run full PTCORE by default in tiny speedrun.
 
 ## P1 SFT
-- [ ] Add `duarteocarmo/smoltalk2PT`: `everyday_conversations`, `tulu_personas`, `smol_rewrite`, `magpie_ultra`.
-- [ ] Add `duarteocarmo/PT-Culture_Data`.
-- [ ] Add `amalia-llm/persona_instruction_following` filtered PT split.
-- [ ] Add `amalia-llm/persona_nemotron` general + instruction-following.
-- [ ] Add `amalia-llm/wikipedia_conversations`.
-- [ ] Add `amalia-llm/ptpt-linguistics-if`.
+- [x] Add `duarteocarmo/smoltalk2PT`: `everyday_conversations`, `tulu_personas`, `smol_rewrite`, `magpie_ultra`.
+- [x] Add `amalia-llm/PT-Culture_Data`.
+- [x] Add `amalia-llm/persona_instruction_following` filtered PT split.
+- [x] Add `amalia-llm/persona_nemotron` general + instruction-following.
+- [x] Add `amalia-llm/wikipedia_conversations`.
+- [x] Add `amalia-llm/ptpt-linguistics-if` at 10x weight.
+- [x] Consolidate AMALIA sources into `duarteocarmo/amaliaSFTCore` with standardized Parquet configs and splits.
+- [x] Use dedicated SmolTalk2PT test splits and deterministic 2% holdouts for the other sources.
 
 ## P1 SFT validation / ChatCORE
 - [ ] Run SFT BPB on held-out/test splits from the SFT mix.
@@ -47,3 +49,7 @@
 - [ ] Add `amalia-llm/pt_exams`.
 - [ ] Add `amalia-llm/P3B3`.
 - [ ] Add `amalia-llm/xstest_ptpt`.
+
+# Issues
+- [ ] Fix SFT stopping so `--num-iterations=N` trains exactly N updates instead of stopping on the prefetched batch.
+- [ ] Fix one-epoch DDP stopping so training does not end when only the first rank exhausts its conversations.

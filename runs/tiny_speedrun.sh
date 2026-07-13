@@ -93,8 +93,6 @@ python -m scripts.chat_sft \
     --chatcore-every=1 \
     --chatcore-max-cat="$MAX_CHAT_PROBLEMS" \
     --chatcore-max-sample="$MAX_CHAT_PROBLEMS" \
-    --mmlu-epochs=0 \
-    --gsm8k-epochs=0 \
     --num-iterations="$SFT_STEPS" \
     --run="$WANDB_RUN"
 

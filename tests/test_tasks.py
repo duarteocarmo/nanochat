@@ -8,6 +8,7 @@ python -m pytest tests/test_tasks.py -v
 import numpy as np
 import pyarrow as pa
 from tasks.common import Task, TaskMixture, HubDataset, render_mc
+from tasks.pt_common import normalize_conversation
 
 
 class ToyTask(Task):
@@ -79,6 +80,17 @@ def test_hub_dataset_shuffle_matches_numpy():
     assert [ds[i]["x"] for i in range(100)] == [int(p) for p in perm]
     # shuffling returns a view; the original order is untouched
     assert HubDataset(table)[0] == {"x": 0}
+
+
+def test_normalize_pt_conversation():
+    conversation = normalize_conversation(messages=[
+        {"from": "human", "value": "Pergunta"},
+        {"from": "gpt", "value": "Resposta"},
+    ])
+    assert conversation["messages"] == [
+        {"role": "user", "content": "Pergunta"},
+        {"role": "assistant", "content": "Resposta"},
+    ]
 
 
 def test_render_mc_letter_binding():
