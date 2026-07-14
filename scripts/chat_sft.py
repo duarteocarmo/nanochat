@@ -60,16 +60,16 @@ parser.add_argument("--eval-tokens", type=int, default=40*524288, help="number o
 parser.add_argument("--ptcore-chat-every", type=int, default=200, help="evaluate PTCORE-Chat every N steps (-1 = disable)")
 parser.add_argument("--ptcore-chat-max-per-task", type=int, default=-1, help="max problems per PTCORE-Chat task (-1 = all)")
 # Data mixture
-parser.add_argument("--pt-smoltalk-everyday-epochs", type=int, default=1)
-parser.add_argument("--pt-smoltalk-magpie-epochs", type=int, default=1)
-parser.add_argument("--pt-smoltalk-rewrite-epochs", type=int, default=1)
-parser.add_argument("--pt-smoltalk-tulu-epochs", type=int, default=1)
-parser.add_argument("--pt-culture-epochs", type=int, default=1)
-parser.add_argument("--pt-persona-instruction-epochs", type=int, default=1)
-parser.add_argument("--pt-nemotron-instruction-epochs", type=int, default=1)
-parser.add_argument("--pt-nemotron-general-epochs", type=int, default=1)
-parser.add_argument("--pt-wikipedia-epochs", type=int, default=1)
-parser.add_argument("--pt-linguistics-epochs", type=int, default=10)
+parser.add_argument("--pt-smoltalk-everyday-epochs", type=int, default=2)
+parser.add_argument("--pt-smoltalk-magpie-epochs", type=int, default=2)
+parser.add_argument("--pt-smoltalk-rewrite-epochs", type=int, default=2)
+parser.add_argument("--pt-smoltalk-tulu-epochs", type=int, default=2)
+parser.add_argument("--pt-culture-epochs", type=int, default=2)
+parser.add_argument("--pt-persona-instruction-epochs", type=int, default=2)
+parser.add_argument("--pt-nemotron-instruction-epochs", type=int, default=2)
+parser.add_argument("--pt-nemotron-general-epochs", type=int, default=2)
+parser.add_argument("--pt-wikipedia-epochs", type=int, default=2)
+parser.add_argument("--pt-linguistics-epochs", type=int, default=20)
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -176,7 +176,7 @@ train_tasks = [
     *[PTAmaliaSFT(subset="pt_nemotron_instruction", split="train") for _ in range(args.pt_nemotron_instruction_epochs)], # 4,394 rows per epoch
     *[PTSmolTalk(subset="everyday", split="train") for _ in range(args.pt_smoltalk_everyday_epochs)], # 2,060 rows per epoch
     *[PTAmaliaSFT(subset="pt_linguistics", split="train") for _ in range(args.pt_linguistics_epochs)], # 196 rows per epoch
-] # 374,740 rows with default epoch settings
+] # 749,480 rows with default epoch settings
 train_dataset = TaskMixture(train_tasks)
 print0(f"Training mixture: {len(train_dataset):,} rows")
 val_dataset = TaskMixture([
