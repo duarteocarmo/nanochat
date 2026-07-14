@@ -1,10 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-# SFT the saved d11 Portuguese education model on one or more H100 GPUs.
+# SFT the saved d11 Portuguese education model on one or more CUDA GPUs.
 #
 # Run:
 #   bash runs/ginjinha_250m_education_score_gte2_full_sft.sh
+#
+# Hardware-sensitive settings can be overridden without changing this file:
+#   NPROC_PER_NODE=2 DEVICE_BATCH_SIZE=16 bash runs/ginjinha_250m_education_score_gte2_full_sft.sh
+# Use a smaller DEVICE_BATCH_SIZE if GPU memory is limited. Gradient accumulation
+# keeps TOTAL_BATCH_SIZE unchanged.
 
 # Run identity and storage
 MODEL_TAG="ginjinha_d11_ratio40_education_score_gte2_full_corpus"
@@ -14,7 +19,9 @@ HF_BUCKET="duarteocarmo/ginjinha"
 
 # Training
 SFT_STEPS="${SFT_STEPS:-500}"
-DEVICE_BATCH_SIZE="32"
+DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-4}"
+MAX_SEQ_LEN="${MAX_SEQ_LEN:-2048}"
+TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-524288}"
 EVAL_EVERY="100"
 EVAL_TOKENS="20971520"
 PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-25}"
@@ -32,20 +39,23 @@ if ! command -v nvidia-smi > /dev/null; then
     echo "nvidia-smi is required" >&2
     exit 1
 fi
-NPROC_PER_NODE=$(nvidia-smi -L | wc -l | tr -d ' ')
-if [ "$NPROC_PER_NODE" = "0" ]; then
-    echo "No NVIDIA GPUs found" >&2
+if [ -z "${NPROC_PER_NODE:-}" ]; then
+    NPROC_PER_NODE=$(nvidia-smi -L | wc -l | tr -d ' ')
+fi
+for SETTING in NPROC_PER_NODE DEVICE_BATCH_SIZE MAX_SEQ_LEN TOTAL_BATCH_SIZE; do
+    if ! [[ "${!SETTING}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "$SETTING must be a positive integer" >&2
+        exit 1
+    fi
+done
+TOKENS_PER_MICRO_BATCH=$((NPROC_PER_NODE * DEVICE_BATCH_SIZE * MAX_SEQ_LEN))
+if [ $((TOTAL_BATCH_SIZE % TOKENS_PER_MICRO_BATCH)) -ne 0 ]; then
+    echo "TOTAL_BATCH_SIZE must be divisible by NPROC_PER_NODE * DEVICE_BATCH_SIZE * MAX_SEQ_LEN" >&2
     exit 1
 fi
-if nvidia-smi --query-gpu=name --format=csv,noheader | grep -vq "H100"; then
-    echo "This run requires H100 GPUs" >&2
-    exit 1
-fi
-if [ $((8 % NPROC_PER_NODE)) -ne 0 ]; then
-    echo "GPU count must divide 8 for the inherited 524,288-token batch size" >&2
-    exit 1
-fi
-echo "Using $NPROC_PER_NODE H100 GPU process(es)"
+GPU_NAMES=$(nvidia-smi --query-gpu=name --format=csv,noheader | sort -u | paste -sd, -)
+echo "Using $NPROC_PER_NODE CUDA GPU process(es): $GPU_NAMES"
+echo "Device batch size: $DEVICE_BATCH_SIZE; gradient accumulation: $((TOTAL_BATCH_SIZE / TOKENS_PER_MICRO_BATCH))"
 
 command -v uv > /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
@@ -67,7 +77,9 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- 
     --model-tag="$MODEL_TAG" \
     --model-step="$MODEL_STEP" \
     --load-optimizer=0 \
+    --max-seq-len="$MAX_SEQ_LEN" \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
+    --total-batch-size="$TOTAL_BATCH_SIZE" \
     --num-iterations="$SFT_STEPS" \
     --eval-every="$EVAL_EVERY" \
     --eval-tokens="$EVAL_TOKENS" \
