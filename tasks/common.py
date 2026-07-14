@@ -13,6 +13,7 @@ import urllib.request
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+from datasets import load_dataset
 from filelock import FileLock
 
 from nanochat.common import get_base_dir
@@ -60,18 +61,30 @@ def load_hub_dataset(repo_id, subset="default", split="train"):
             # only a single rank acquires the lock and downloads, the others block
             # here and then skip the download because they recheck the manifest
             if not os.path.exists(manifest_path):
-                listing_url = f"https://huggingface.co/api/datasets/{repo_id}/parquet/{subset}/{split}"
-                with urllib.request.urlopen(listing_url) as response:
-                    shard_urls = json.loads(response.read())
-                filenames = []
-                for shard_index, shard_url in enumerate(shard_urls):
-                    filename = f"{shard_index:05d}.parquet"
-                    print(f"Downloading {shard_url} ...")
-                    with urllib.request.urlopen(shard_url) as response:
-                        content = response.read()
-                    with open(os.path.join(shards_dir, filename), "wb") as f:
-                        f.write(content)
-                    filenames.append(filename)
+                try:
+                    listing_url = f"https://huggingface.co/api/datasets/{repo_id}/parquet/{subset}/{split}"
+                    with urllib.request.urlopen(listing_url) as response:
+                        shard_urls = json.loads(response.read())
+                    filenames = []
+                    for shard_index, shard_url in enumerate(shard_urls):
+                        filename = f"{shard_index:05d}.parquet"
+                        print(f"Downloading {shard_url} ...")
+                        with urllib.request.urlopen(shard_url) as response:
+                            content = response.read()
+                        with open(os.path.join(shards_dir, filename), "wb") as f:
+                            f.write(content)
+                        filenames.append(filename)
+                except (OSError, json.JSONDecodeError) as error:
+                    dataset = load_dataset(
+                        path=repo_id,
+                        name=subset,
+                        split=split,
+                    )
+                    filenames = ["00000.parquet"]
+                    dataset.to_parquet(
+                        path_or_buf=os.path.join(shards_dir, filenames[0]),
+                    )
+                    print(f"Loaded {repo_id}/{subset}/{split} with datasets after the Parquet API failed: {error}")
                 with open(manifest_path, "w") as f:
                     json.dump(filenames, f)
     with open(manifest_path, "r") as f:
