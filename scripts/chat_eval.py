@@ -4,23 +4,18 @@ All the generic code lives here, and all the evaluation-specific
 code lives in nanochat directory and is imported from here.
 
 Example runs:
-python -m scripts.chat_eval -i sft -a ARC-Easy
-torchrun --nproc_per_node=8 -m scripts.chat_eval -- -i sft -a ARC-Easy
+python -m scripts.chat_eval -i sft -a PT-PortugalBasicQA
+torchrun --nproc_per_node=8 -m scripts.chat_eval -- -i sft
 """
 
 import argparse
-from functools import partial
 import torch
 import torch.distributed as dist
 
 from nanochat.common import compute_init, compute_cleanup, get_dist_info, print0, autodetect_device_type
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
-
-from tasks.humaneval import HumanEval
-from tasks.mmlu import MMLU
-from tasks.arc import ARC
-from tasks.gsm8k import GSM8K
+from tasks.ptcore_chat import PTCORE_CHAT_TASK_NAMES, aggregate_ptcore_chat, build_ptcore_chat_task
 
 # -----------------------------------------------------------------------------
 # Generative evaluation loop (we go one problem at a time, sample, evaluate)
@@ -153,26 +148,30 @@ def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems
 
 # -----------------------------------------------------------------------------
 
-def run_chat_eval(task_name, model, tokenizer, engine,
+def run_chat_eval(task_name, model, tokenizer, engine=None,
                    batch_size=1, num_samples=1, max_new_tokens=512, temperature=0.0, top_k=50,
                    max_problems=None):
-    # Create the evaluation object
-    task_module = {
-        'HumanEval': HumanEval,
-        'MMLU': partial(MMLU, subset="all", split="test"),
-        'ARC-Easy': partial(ARC, subset="ARC-Easy", split="test"),
-        'ARC-Challenge': partial(ARC, subset="ARC-Challenge", split="test"),
-        'GSM8K': partial(GSM8K, subset="main", split="test"),
-    }[task_name]
-    task_object = task_module()
-    # Run the evaluation
+    task_object = build_ptcore_chat_task(task_name=task_name)
     if task_object.eval_type == 'generative':
-        acc = run_generative_eval(task_object, tokenizer, model, engine, num_samples, max_new_tokens, temperature, top_k, max_problems=max_problems)
-    elif task_object.eval_type == 'categorical':
-        acc = run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=max_problems)
-    else:
-        raise ValueError(f"Unsupported task evaluation type: {task_object.eval_type}")
-    return acc
+        engine = engine or Engine(model=model, tokenizer=tokenizer)
+        return run_generative_eval(
+            task_object=task_object,
+            tokenizer=tokenizer,
+            model=model,
+            engine=engine,
+            num_samples=num_samples,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            max_problems=max_problems,
+        )
+    return run_categorical_eval(
+        task_object=task_object,
+        tokenizer=tokenizer,
+        model=model,
+        batch_size=batch_size,
+        max_problems=max_problems,
+    )
 
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -180,7 +179,7 @@ if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--source', type=str, required=True, help="Source of the model: sft|rl")
-    parser.add_argument('-a', '--task-name', type=str, default=None, help="Task name. Default = all tasks. Use | to split multiple tasks.")
+    parser.add_argument('-a', '--task-name', type=str, default=None, help="Task name. Default = PTCORE-Chat suite. Use | to split multiple tasks.")
     parser.add_argument('-t', '--temperature', type=float, default=0.0)
     parser.add_argument('-m', '--max-new-tokens', type=int, default=512)
     parser.add_argument('-n', '--num-samples', type=int, default=1)
@@ -196,25 +195,17 @@ if __name__ == "__main__":
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 
     model, tokenizer, meta = load_model(args.source, device, phase="eval", model_tag=args.model_tag, step=args.step)
-    engine = Engine(model, tokenizer)
 
-    # Get the tasks to evaluate on
-    all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval']
-    baseline_accuracies = {
-        'ARC-Easy': 0.25, # multiple choice 1 of 4 => 25%
-        'ARC-Challenge': 0.25, # multiple choice 1 of 4 => 25%
-        'MMLU': 0.25, # multiple choice 1 of 4 => 25%
-        'GSM8K': 0.0, # open-ended => 0%
-        'HumanEval': 0.0, # open-ended => 0%
-    }
+    all_tasks = PTCORE_CHAT_TASK_NAMES
     task_names = all_tasks if args.task_name is None else args.task_name.split('|')
 
     # Run all the task evaluations sequentially
     results = {}
     for task_name in task_names:
         acc = run_chat_eval(
-            task_name,
-            model, tokenizer, engine,
+            task_name=task_name,
+            model=model,
+            tokenizer=tokenizer,
             batch_size=args.batch_size,
             num_samples=args.num_samples,
             max_new_tokens=args.max_new_tokens,
@@ -225,16 +216,13 @@ if __name__ == "__main__":
         results[task_name] = acc
         print0(f"{task_name} accuracy: {100 * acc:.2f}%")
 
-    # calculate the ChatCORE metric if we can (similar to CORE, it's the mean centered accuracy)
-    # this way, ChatCORE ranges from 0 (at random baseline) to 1 (peak performance)
+    # PTCORE-Chat averages centered task accuracy within each family, then gives
+    # the four families equal weight.
     all_tasks_were_evaluated = all(task_name in results for task_name in all_tasks)
     if all_tasks_were_evaluated:
-        centered_mean = 0
-        for task_name, acc in results.items():
-            baseline_acc = baseline_accuracies.get(task_name, 0.0)
-            centered_acc = (acc - baseline_acc) / (1.0 - baseline_acc)
-            centered_mean += centered_acc
-        chatcore_metric = centered_mean / len(results)
-        print0(f"ChatCORE metric: {chatcore_metric:.4f}")
+        ptcore_chat = aggregate_ptcore_chat(results=results)
+        for family, score in ptcore_chat["families"].items():
+            print0(f"PTCORE-Chat {family}: {score:.4f}")
+        print0(f"PTCORE-Chat metric: {ptcore_chat['metric']:.4f}")
 
     compute_cleanup()

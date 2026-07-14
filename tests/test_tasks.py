@@ -9,6 +9,12 @@ import numpy as np
 import pyarrow as pa
 from tasks.common import Task, TaskMixture, HubDataset, render_mc
 from tasks.pt_common import normalize_conversation
+from tasks.ptcore_chat import (
+    PTCORE_CHAT_TASKS,
+    PTCityRegionQA,
+    PTCoreChatMCQ,
+    aggregate_ptcore_chat,
+)
 
 
 class ToyTask(Task):
@@ -98,3 +104,38 @@ def test_render_mc_letter_binding():
     # the letter must directly follow '=' with no whitespace, so that the
     # prompt token for "A" matches the assistant's bare "A" response token
     assert "=A\n" in query and "=B\n" in query
+
+
+def test_ptcore_chat_mcq_adapter():
+    task = PTCoreChatMCQ(
+        subset="portugal_basic_qa",
+        rows=[{"query": "Qual é a capital?", "choices": ["Porto", "Lisboa", "Faro"], "gold": 1}],
+    )
+    conversation = task[0]
+    assert conversation["letters"] == ("A", "B", "C")
+    assert conversation["messages"][-1] == {"role": "assistant", "content": "B"}
+    assert task.evaluate(conversation=conversation, assistant_response="B")
+    assert not task.evaluate(conversation=conversation, assistant_response="A")
+
+
+def test_pt_city_region_qa():
+    task = PTCityRegionQA()
+    assert len(task) == 28
+    for index in range(len(task)):
+        conversation = task[index]
+        assert len(conversation["letters"]) == 7
+        assert task.evaluate(
+            conversation=conversation,
+            assistant_response=conversation["messages"][-1]["content"],
+        )
+
+
+def test_ptcore_chat_aggregation_baseline_and_perfect():
+    baseline_results = {task["name"]: task["baseline"] for task in PTCORE_CHAT_TASKS}
+    baseline = aggregate_ptcore_chat(results=baseline_results)
+    assert baseline["metric"] == 0
+    assert set(baseline["families"]) == {"portugal", "alba", "cultura_viva", "pt_exams"}
+
+    perfect_results = {task["name"]: 1.0 for task in PTCORE_CHAT_TASKS}
+    perfect = aggregate_ptcore_chat(results=perfect_results)
+    assert perfect["metric"] == 1

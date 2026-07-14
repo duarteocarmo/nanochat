@@ -40,15 +40,13 @@
 - [x] Consolidate AMALIA sources into `duarteocarmo/amalia-sft` with standardized Parquet configs and splits.
 - [x] Use dedicated SmolTalk2PT test splits and deterministic 2% holdouts for the other sources.
 
-## P1 SFT validation / ChatCORE
+## P1 SFT validation / PTCORE-Chat
 - [ ] Run SFT BPB on held-out/test splits from the SFT mix.
-- [ ] Add `duarteocarmo/portugal-basic-qa-ptcore`.
-- [ ] Add hardcoded Portugal city → region QA.
-- [ ] Add `amalia-llm/alba_mcq`.
-- [ ] Add `amalia-llm/cultura-viva-pt-mcq`.
-- [ ] Add `amalia-llm/pt_exams`.
-- [ ] Add `amalia-llm/P3B3`.
-- [ ] Add `amalia-llm/xstest_ptpt`.
+- [x] Add `duarteocarmo/portugal-basic-qa-ptcore`.
+- [x] Add hardcoded Portugal city → region QA.
+- [x] Add `amalia-llm/alba_mcq`.
+- [x] Add `amalia-llm/cultura-viva-pt-mcq`.
+- [x] Add `amalia-llm/pt_exams`.
 
 # Issues
 - [ ] Fix SFT stopping so `--num-iterations=N` trains exactly N updates instead of stopping on the prefetched batch.

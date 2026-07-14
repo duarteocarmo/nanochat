@@ -2,7 +2,7 @@
 
 # Tiny end-to-end smoke test for the full nanochat flow on a Mac/CPU/MPS.
 # It is not meant to train a useful model. It validates that all stages connect:
-# dataset -> tokenizer -> tokenizer eval -> base train -> CORE/BPB/sample eval -> SFT -> ChatCORE/chat eval.
+# dataset -> tokenizer -> tokenizer eval -> base train -> PTCORE/BPB/sample eval -> SFT -> PTCORE-Chat eval.
 #
 # Run:
 #   bash runs/tiny_speedrun.sh
@@ -31,7 +31,7 @@ DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-1}"
 TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-512}"
 EVAL_TOKENS="${EVAL_TOKENS:-512}"
 MAX_CORE_PROBLEMS="-1"
-MAX_CHAT_PROBLEMS="${MAX_CHAT_PROBLEMS:-1}"
+MAX_PTCORE_CHAT_PROBLEMS="${MAX_PTCORE_CHAT_PROBLEMS:-1}"
 
 mkdir -p "$NANOCHAT_BASE_DIR"
 
@@ -90,9 +90,8 @@ python -m scripts.chat_sft \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
     --eval-every=1 \
     --eval-tokens="$EVAL_TOKENS" \
-    --chatcore-every=1 \
-    --chatcore-max-cat="$MAX_CHAT_PROBLEMS" \
-    --chatcore-max-sample="$MAX_CHAT_PROBLEMS" \
+    --ptcore-chat-every=1 \
+    --ptcore-chat-max-per-task="$MAX_PTCORE_CHAT_PROBLEMS" \
     --num-iterations="$SFT_STEPS" \
     --run="$WANDB_RUN"
 
@@ -100,6 +99,5 @@ python -m scripts.chat_eval \
     $DEVICE_ARG \
     -i sft \
     -g "$MODEL_TAG" \
-    -a ARC-Easy \
     -b "$DEVICE_BATCH_SIZE" \
-    -x "$MAX_CHAT_PROBLEMS"
+    -x "$MAX_PTCORE_CHAT_PROBLEMS"

@@ -17,7 +17,7 @@ SFT_STEPS="${SFT_STEPS:-500}"
 DEVICE_BATCH_SIZE="32"
 EVAL_EVERY="100"
 EVAL_TOKENS="20971520"
-CHATCORE_EVERY="-1"
+PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-25}"
 
 # Runtime and derived paths
 export OMP_NUM_THREADS=1
@@ -71,7 +71,7 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- 
     --num-iterations="$SFT_STEPS" \
     --eval-every="$EVAL_EVERY" \
     --eval-tokens="$EVAL_TOKENS" \
-    --chatcore-every="$CHATCORE_EVERY" \
+    --ptcore-chat-every="$PTCORE_CHAT_EVERY" \
     --run="$WANDB_RUN" \
     "$@"
 
