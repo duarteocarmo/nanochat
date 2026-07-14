@@ -9,7 +9,7 @@ set -euo pipefail
 # Hardware-sensitive settings can be overridden without changing this file:
 #   NPROC_PER_NODE=2 DEVICE_BATCH_SIZE=16 bash runs/ginjinha_250m_education_score_gte2_full_sft.sh
 # Use a smaller DEVICE_BATCH_SIZE if GPU memory is limited. Gradient accumulation
-# keeps TOTAL_BATCH_SIZE unchanged.
+# keeps TOTAL_BATCH_SIZE unchanged. SFT runs for one full dataset epoch.
 
 # Run identity and storage
 MODEL_TAG="ginjinha_d11_ratio40_education_score_gte2_full_corpus"
@@ -18,13 +18,12 @@ WANDB_RUN="${MODEL_TAG}_pt_sft"
 HF_BUCKET="duarteocarmo/ginjinha"
 
 # Training
-SFT_STEPS="${SFT_STEPS:-500}"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-4}"
 MAX_SEQ_LEN="${MAX_SEQ_LEN:-2048}"
 TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-524288}"
 EVAL_EVERY="100"
 EVAL_TOKENS="20971520"
-PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-25}"
+PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-100}"
 
 # Runtime and derived paths
 export OMP_NUM_THREADS=1
@@ -80,7 +79,6 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- 
     --max-seq-len="$MAX_SEQ_LEN" \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
-    --num-iterations="$SFT_STEPS" \
     --eval-every="$EVAL_EVERY" \
     --eval-tokens="$EVAL_TOKENS" \
     --ptcore-chat-every="$PTCORE_CHAT_EVERY" \
