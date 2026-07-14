@@ -14,7 +14,7 @@ from nanochat.core_eval import evaluate_task
 from tasks.common import load_hub_dataset
 
 
-PTCORE_REPO_ID = "duarteocarmo/ptcore"
+PTCORE_REPO_ID = "duarteocarmo/ptcore-eval"
 PTCORE_TASKS = [
     {"name": "sst2_pt_mini", "num_fewshot": 0},
     {"name": "scala_pt", "num_fewshot": 0},

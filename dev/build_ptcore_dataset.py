@@ -22,7 +22,7 @@ Smoke test:
     uv run python dev/build_ptcore_dataset.py --max-per-task 5
 
 Optional upload:
-    uv run python dev/build_ptcore_dataset.py --push-to-hub --repo-id duarteocarmo/ptcore
+    uv run python dev/build_ptcore_dataset.py --push-to-hub --repo-id duarteocarmo/ptcore-eval
 """
 
 import argparse
@@ -406,7 +406,7 @@ def main() -> None:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--max-per-task", type=int, default=None, help="Limit rows per task for smoke tests")
-    parser.add_argument("--repo-id", type=str, default="duarteocarmo/ptcore")
+    parser.add_argument("--repo-id", type=str, default="duarteocarmo/ptcore-eval")
     parser.add_argument("--push-to-hub", action="store_true")
     args = parser.parse_args()
 

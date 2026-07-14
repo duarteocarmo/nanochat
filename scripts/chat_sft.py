@@ -26,7 +26,7 @@ from nanochat.engine import Engine
 from scripts.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
-from tasks.pt_amalia_sft_core import PTAmaliaSFTCore
+from tasks.pt_amalia_sft import PTAmaliaSFT
 from tasks.pt_smoltalk import PTSmolTalk
 
 # -----------------------------------------------------------------------------
@@ -167,30 +167,30 @@ for group in optimizer.param_groups:
 
 # SFT data mixture and DataLoader
 train_tasks = [
-    *[PTAmaliaSFTCore(subset="pt_wikipedia", split="train") for _ in range(args.pt_wikipedia_epochs)], # 95,592 rows per epoch
-    *[PTAmaliaSFTCore(subset="pt_culture", split="train") for _ in range(args.pt_culture_epochs)], # 88,058 rows per epoch
-    *[PTAmaliaSFTCore(subset="pt_nemotron_general", split="train") for _ in range(args.pt_nemotron_general_epochs)], # 69,304 rows per epoch
+    *[PTAmaliaSFT(subset="pt_wikipedia", split="train") for _ in range(args.pt_wikipedia_epochs)], # 95,592 rows per epoch
+    *[PTAmaliaSFT(subset="pt_culture", split="train") for _ in range(args.pt_culture_epochs)], # 88,058 rows per epoch
+    *[PTAmaliaSFT(subset="pt_nemotron_general", split="train") for _ in range(args.pt_nemotron_general_epochs)], # 69,304 rows per epoch
     *[PTSmolTalk(subset="magpie", split="train") for _ in range(args.pt_smoltalk_magpie_epochs)], # 47,500 rows per epoch
     *[PTSmolTalk(subset="rewrite", split="train") for _ in range(args.pt_smoltalk_rewrite_epochs)], # 28,500 rows per epoch
     *[PTSmolTalk(subset="tulu", split="train") for _ in range(args.pt_smoltalk_tulu_epochs)], # 28,470 rows per epoch
-    *[PTAmaliaSFTCore(subset="pt_persona_instruction", split="train") for _ in range(args.pt_persona_instruction_epochs)], # 8,902 rows per epoch
-    *[PTAmaliaSFTCore(subset="pt_nemotron_instruction", split="train") for _ in range(args.pt_nemotron_instruction_epochs)], # 4,394 rows per epoch
+    *[PTAmaliaSFT(subset="pt_persona_instruction", split="train") for _ in range(args.pt_persona_instruction_epochs)], # 8,902 rows per epoch
+    *[PTAmaliaSFT(subset="pt_nemotron_instruction", split="train") for _ in range(args.pt_nemotron_instruction_epochs)], # 4,394 rows per epoch
     *[PTSmolTalk(subset="everyday", split="train") for _ in range(args.pt_smoltalk_everyday_epochs)], # 2,060 rows per epoch
-    *[PTAmaliaSFTCore(subset="pt_linguistics", split="train") for _ in range(args.pt_linguistics_epochs)], # 196 rows per epoch
+    *[PTAmaliaSFT(subset="pt_linguistics", split="train") for _ in range(args.pt_linguistics_epochs)], # 196 rows per epoch
 ] # 374,740 rows with default epoch settings
 train_dataset = TaskMixture(train_tasks)
 print0(f"Training mixture: {len(train_dataset):,} rows")
 val_dataset = TaskMixture([
     PTSmolTalk(subset="magpie", split="validation"), # 2,500 test rows
-    PTAmaliaSFTCore(subset="pt_wikipedia", split="validation"), # 1,951 rows
-    PTAmaliaSFTCore(subset="pt_culture", split="validation"), # 1,798 rows
+    PTAmaliaSFT(subset="pt_wikipedia", split="validation"), # 1,951 rows
+    PTAmaliaSFT(subset="pt_culture", split="validation"), # 1,798 rows
     PTSmolTalk(subset="rewrite", split="validation"), # 1,500 test rows
     PTSmolTalk(subset="tulu", split="validation"), # 1,500 test rows
-    PTAmaliaSFTCore(subset="pt_nemotron_general", split="validation"), # 1,415 rows
+    PTAmaliaSFT(subset="pt_nemotron_general", split="validation"), # 1,415 rows
     PTSmolTalk(subset="everyday", split="validation"), # 200 test rows
-    PTAmaliaSFTCore(subset="pt_persona_instruction", split="validation"), # 182 rows
-    PTAmaliaSFTCore(subset="pt_nemotron_instruction", split="validation"), # 90 rows
-    PTAmaliaSFTCore(subset="pt_linguistics", split="validation"), # 4 rows
+    PTAmaliaSFT(subset="pt_persona_instruction", split="validation"), # 182 rows
+    PTAmaliaSFT(subset="pt_nemotron_instruction", split="validation"), # 90 rows
+    PTAmaliaSFT(subset="pt_linguistics", split="validation"), # 4 rows
 ]) # 11,140 rows total
 print0(f"Validation mixture: {len(val_dataset):,} held-out rows")
 # DataLoader is defined here, it emits inputs, targets : 2D tensors of shape (device_batch_size, max_seq_len)

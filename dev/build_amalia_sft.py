@@ -1,12 +1,12 @@
-"""Build the standardized duarteocarmo/amaliaSFTCore dataset.
+"""Build the standardized duarteocarmo/amalia-sft dataset.
 
 The output has one config per source and train/validation Parquet splits.
 
 Run:
-    uv run python dev/build_amalia_sft_core.py
+    uv run python dev/build_amalia_sft.py
 
 Smoke test:
-    uv run python dev/build_amalia_sft_core.py --max-per-config 100
+    uv run python dev/build_amalia_sft.py --max-per-config 100
 """
 
 import argparse
@@ -23,7 +23,7 @@ import pyarrow.json as json_reader
 import pyarrow.parquet as parquet
 
 
-DEFAULT_OUT_DIR = Path("dev-ignore/amaliaSFTCore")
+DEFAULT_OUT_DIR = Path("dev-ignore/amalia-sft")
 DEFAULT_CACHE_DIR = Path("dev-ignore/amalia-sft-cache")
 SOURCES = [
     {
@@ -211,7 +211,7 @@ def write_dataset(config_rows: dict[str, dict[str, list[dict]]], out_dir: Path) 
     readme.extend([
         "---",
         "",
-        "# amaliaSFTCore",
+        "# AMALIA SFT",
         "",
         "Standardized European Portuguese supervised fine-tuning data from AMALIA.",
         "",
@@ -228,11 +228,11 @@ def write_dataset(config_rows: dict[str, dict[str, list[dict]]], out_dir: Path) 
         readme.append(f"| `{config}` | {len(splits['train'])} | {len(splits['validation'])} |")
     readme.append("")
     (out_dir / "README.md").write_text("\n".join(readme), encoding="utf-8")
-    print(f"Wrote amaliaSFTCore to {out_dir}")
+    print(f"Wrote AMALIA SFT to {out_dir}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build amaliaSFTCore")
+    parser = argparse.ArgumentParser(description="Build AMALIA SFT")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--max-per-config", type=int, default=None)

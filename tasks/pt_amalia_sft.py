@@ -14,15 +14,15 @@ _SUBSETS = {
 }
 
 
-class PTAmaliaSFTCore(Task):
+class PTAmaliaSFT(Task):
     def __init__(self, subset, split, **kwargs):
         super().__init__(**kwargs)
         if subset not in _SUBSETS:
-            raise ValueError(f"Unknown PTAmaliaSFTCore subset: {subset}")
+            raise ValueError(f"Unknown PTAmaliaSFT subset: {subset}")
         if split not in {"train", "validation"}:
-            raise ValueError(f"PTAmaliaSFTCore split must be train|validation, got {split}")
+            raise ValueError(f"PTAmaliaSFT split must be train|validation, got {split}")
         self.ds = load_hub_dataset(
-            repo_id="duarteocarmo/amaliaSFTCore",
+            repo_id="duarteocarmo/amalia-sft",
             subset=subset,
             split=split,
         ).shuffle(seed=42)

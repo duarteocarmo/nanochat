@@ -12,7 +12,7 @@
 - [ ] Add optional BPB sanity slice from `CorEGe-PT` if we add it.
 
 ## P1 PTCORE
-- [x] Standardize PTCORE sources into `duarteocarmo/ptcore`.
+- [x] Standardize PTCORE sources into `duarteocarmo/ptcore-eval`.
 - [x] Use one HF config/subset per PTCORE task.
 - [x] Keep `duarteocarmo/sst2-pt-mini`.
 - [x] Keep `duarteocarmo/scala-pt`.
@@ -37,7 +37,7 @@
 - [x] Add `amalia-llm/persona_nemotron` general + instruction-following.
 - [x] Add `amalia-llm/wikipedia_conversations`.
 - [x] Add `amalia-llm/ptpt-linguistics-if` at 10x weight.
-- [x] Consolidate AMALIA sources into `duarteocarmo/amaliaSFTCore` with standardized Parquet configs and splits.
+- [x] Consolidate AMALIA sources into `duarteocarmo/amalia-sft` with standardized Parquet configs and splits.
 - [x] Use dedicated SmolTalk2PT test splits and deterministic 2% holdouts for the other sources.
 
 ## P1 SFT validation / ChatCORE
