@@ -13,3 +13,4 @@ CLAUDE.md
 wandb/
 /.envrc
 /.DS_Store
+/logs
