@@ -15,7 +15,7 @@ set -euo pipefail
 MODEL_TAG="ginjinha_d11_ratio40_education_score_gte2_full_corpus"
 MODEL_STEP="7860"
 WANDB_RUN="${MODEL_TAG}_pt_sft"
-HF_BUCKET="duarteocarmo/ginjinha"
+HF_MODEL_REPO="duarteocarmo/ginjinha"
 
 # Training
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-4}"
@@ -28,8 +28,8 @@ PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-100}"
 # Runtime and derived paths
 export OMP_NUM_THREADS=1
 export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
-HF_BASE_RUN_URI="hf://buckets/$HF_BUCKET/$MODEL_TAG"
-HF_SFT_RUN_URI="hf://buckets/$HF_BUCKET/$WANDB_RUN"
+HF_BASE_RUN_URI="hf://$HF_MODEL_REPO/$MODEL_TAG"
+HF_SFT_RUN_URI="hf://$HF_MODEL_REPO/$WANDB_RUN"
 BASE_CHECKPOINT_DIR="$NANOCHAT_BASE_DIR/base_checkpoints/$MODEL_TAG"
 SFT_CHECKPOINT_DIR="$NANOCHAT_BASE_DIR/chatsft_checkpoints/$MODEL_TAG"
 mkdir -p "$NANOCHAT_BASE_DIR"
@@ -62,16 +62,17 @@ export PATH="$HOME/.local/bin:$PATH"
 uv sync --extra gpu
 source .venv/bin/activate
 uvx hf auth whoami > /dev/null 2>&1 || uvx hf auth login
-uvx hf buckets info "$HF_BUCKET" > /dev/null
+uvx hf models info "$HF_MODEL_REPO" > /dev/null
 
 mkdir -p "$BASE_CHECKPOINT_DIR" "$NANOCHAT_BASE_DIR/tokenizer"
 printf -v MODEL_STEP_PADDED "%06d" "$MODEL_STEP"
-uvx hf buckets cp "$HF_BASE_RUN_URI/checkpoints/model_$MODEL_STEP_PADDED.pt" "$BASE_CHECKPOINT_DIR/"
-uvx hf buckets cp "$HF_BASE_RUN_URI/checkpoints/meta_$MODEL_STEP_PADDED.json" "$BASE_CHECKPOINT_DIR/"
-uvx hf buckets sync "$HF_BASE_RUN_URI/tokenizer" "$NANOCHAT_BASE_DIR/tokenizer"
+uvx hf repos cp "$HF_BASE_RUN_URI/checkpoints/model_$MODEL_STEP_PADDED.pt" "$BASE_CHECKPOINT_DIR/"
+uvx hf repos cp "$HF_BASE_RUN_URI/checkpoints/meta_$MODEL_STEP_PADDED.json" "$BASE_CHECKPOINT_DIR/"
+uvx hf repos cp "$HF_BASE_RUN_URI/tokenizer/token_bytes.pt" "$NANOCHAT_BASE_DIR/tokenizer/"
+uvx hf repos cp "$HF_BASE_RUN_URI/tokenizer/tokenizer.pkl" "$NANOCHAT_BASE_DIR/tokenizer/"
 echo "Downloaded base checkpoint step $MODEL_STEP and tokenizer from $HF_BASE_RUN_URI"
 
-# The base bucket excludes optimizer shards, so SFT starts with a fresh optimizer.
+# The base model repo excludes optimizer shards, so SFT starts with a fresh optimizer.
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- \
     --model-tag="$MODEL_TAG" \
     --model-step="$MODEL_STEP" \
@@ -85,5 +86,5 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- 
     --run="$WANDB_RUN" \
     "$@"
 
-uvx hf buckets sync "$SFT_CHECKPOINT_DIR" "$HF_SFT_RUN_URI/checkpoints" --exclude "optim_*.pt"
+uvx hf upload "$HF_MODEL_REPO" "$SFT_CHECKPOINT_DIR" "$WANDB_RUN/checkpoints" --repo-type model --exclude "optim_*.pt" --commit-message "Add $WANDB_RUN SFT checkpoint"
 echo "Uploaded SFT checkpoint to $HF_SFT_RUN_URI/checkpoints"

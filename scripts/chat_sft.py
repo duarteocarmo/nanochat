@@ -26,6 +26,7 @@ from scripts.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
 from tasks.pt_amalia_sft import PTAmaliaSFT
+from tasks.pt_mcq import PTMCQ
 from tasks.pt_smoltalk import PTSmolTalk
 from tasks.ptcore_chat import PTCORE_CHAT_TASK_NAMES, aggregate_ptcore_chat
 
@@ -60,16 +61,19 @@ parser.add_argument("--eval-tokens", type=int, default=40*524288, help="number o
 parser.add_argument("--ptcore-chat-every", type=int, default=200, help="evaluate PTCORE-Chat every N steps (-1 = disable)")
 parser.add_argument("--ptcore-chat-max-per-task", type=int, default=-1, help="max problems per PTCORE-Chat task (-1 = all)")
 # Data mixture
-parser.add_argument("--pt-smoltalk-everyday-epochs", type=int, default=2)
-parser.add_argument("--pt-smoltalk-magpie-epochs", type=int, default=2)
-parser.add_argument("--pt-smoltalk-rewrite-epochs", type=int, default=2)
-parser.add_argument("--pt-smoltalk-tulu-epochs", type=int, default=2)
-parser.add_argument("--pt-culture-epochs", type=int, default=2)
-parser.add_argument("--pt-persona-instruction-epochs", type=int, default=2)
-parser.add_argument("--pt-nemotron-instruction-epochs", type=int, default=2)
-parser.add_argument("--pt-nemotron-general-epochs", type=int, default=2)
-parser.add_argument("--pt-wikipedia-epochs", type=int, default=2)
-parser.add_argument("--pt-linguistics-epochs", type=int, default=20)
+parser.add_argument("--pt-smoltalk-everyday-epochs", type=int, default=1)
+parser.add_argument("--pt-smoltalk-magpie-epochs", type=int, default=1)
+parser.add_argument("--pt-smoltalk-rewrite-epochs", type=int, default=1)
+parser.add_argument("--pt-smoltalk-tulu-epochs", type=int, default=1)
+parser.add_argument("--pt-culture-epochs", type=int, default=1)
+parser.add_argument("--pt-persona-instruction-epochs", type=int, default=1)
+parser.add_argument("--pt-nemotron-instruction-epochs", type=int, default=1)
+parser.add_argument("--pt-nemotron-general-epochs", type=int, default=1)
+parser.add_argument("--pt-wikipedia-epochs", type=int, default=1)
+parser.add_argument("--pt-linguistics-epochs", type=int, default=1)
+parser.add_argument("--pt-mmlu-epochs", type=int, default=3)
+parser.add_argument("--pt-goldenswag-epochs", type=int, default=3)
+parser.add_argument("--pt-boolq-epochs", type=int, default=1)
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -176,7 +180,10 @@ train_tasks = [
     *[PTAmaliaSFT(subset="pt_nemotron_instruction", split="train") for _ in range(args.pt_nemotron_instruction_epochs)], # 4,394 rows per epoch
     *[PTSmolTalk(subset="everyday", split="train") for _ in range(args.pt_smoltalk_everyday_epochs)], # 2,060 rows per epoch
     *[PTAmaliaSFT(subset="pt_linguistics", split="train") for _ in range(args.pt_linguistics_epochs)], # 196 rows per epoch
-] # 749,480 rows with default epoch settings
+    *[PTMCQ(subset="mmlu", split="train", permutation_seed=epoch) for epoch in range(args.pt_mmlu_epochs)], # 15,674 rows per epoch
+    *[PTMCQ(subset="goldenswag", split="train", permutation_seed=epoch) for epoch in range(args.pt_goldenswag_epochs)], # 1,524 rows per epoch
+    *[PTMCQ(subset="boolq", split="train", permutation_seed=epoch) for epoch in range(args.pt_boolq_epochs)], # 9,388 rows per epoch
+] # 433,958 rows with default epoch settings
 train_dataset = TaskMixture(train_tasks)
 print0(f"Training mixture: {len(train_dataset):,} rows")
 val_dataset = TaskMixture([
@@ -376,7 +383,7 @@ while True:
 
     # once in a while: estimate PTCORE-Chat (all ranks participate)
     # use the original uncompiled model because the inputs keep changing shape
-    if args.ptcore_chat_every > 0 and (last_step or (step > 0 and step % args.ptcore_chat_every == 0)):
+    if args.ptcore_chat_every > 0 and (last_step or step % args.ptcore_chat_every == 0):
         model.eval()
         max_problems = None if args.ptcore_chat_max_per_task < 0 else args.ptcore_chat_max_per_task
         task_results = {}

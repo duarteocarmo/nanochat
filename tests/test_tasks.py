@@ -8,7 +8,8 @@ python -m pytest tests/test_tasks.py -v
 import numpy as np
 import pyarrow as pa
 from tasks.common import Task, TaskMixture, HubDataset, render_mc
-from tasks.pt_common import normalize_conversation
+from tasks.pt_common import normalize_conversation, render_portuguese_mc
+from tasks.pt_mcq import PTMCQ
 from tasks.ptcore_chat import (
     PTCORE_CHAT_TASKS,
     PTCityRegionQA,
@@ -104,6 +105,36 @@ def test_render_mc_letter_binding():
     # the letter must directly follow '=' with no whitespace, so that the
     # prompt token for "A" matches the assistant's bare "A" response token
     assert "=A\n" in query and "=B\n" in query
+
+
+def test_render_portuguese_mc_letter_binding():
+    query = render_portuguese_mc(
+        question="Quanto é 1+1?",
+        letters=("A", "B"),
+        choices=("1", "2"),
+    )
+    assert "=A\n" in query and "=B\n" in query
+    assert query.endswith("Responde apenas com a letra da resposta correta.")
+
+
+def test_pt_mcq_permutations_cover_answer_letters():
+    rows = [{
+        "question": "Quanto é 1+1?",
+        "context": "Usa aritmética.",
+        "choices": ["0", "1", "2", "3"],
+        "answer": 2,
+        "source_id": "example-1",
+    }]
+    conversations = [
+        PTMCQ(subset="mmlu", split="train", permutation_seed=seed, rows=rows)[0]
+        for seed in range(4)
+    ]
+    answers = {conversation["messages"][-1]["content"] for conversation in conversations}
+    assert answers == {"A", "B", "C", "D"}
+    for conversation in conversations:
+        answer = conversation["messages"][-1]["content"]
+        assert f"- 2={answer}\n" in conversation["messages"][0]["content"]
+        assert "Texto: Usa aritmética." in conversation["messages"][0]["content"]
 
 
 def test_ptcore_chat_mcq_adapter():

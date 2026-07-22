@@ -1,3 +1,4 @@
 - when looking for machines, you use vastai or verda depending on what the user asks
 - make a table when looking for machine that informs user (location, type, cost)
+- when renting on Vast.ai, use the recommended `PyTorch (Vast)` template instead of launching directly from a CUDA image, unless the user asks otherwise
 - make the changes locally - but ask before commiting or pushing

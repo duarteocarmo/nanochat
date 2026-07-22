@@ -4,6 +4,7 @@ import random
 
 from nanochat.ptcore_eval import PTCORE_REPO_ID, default_local_ptcore_dir, load_ptcore_task
 from tasks.common import Task
+from tasks.pt_common import render_portuguese_mc
 
 
 PTCORE_CHAT_TASKS = (
@@ -66,13 +67,6 @@ CITY_REGIONS = (
     ("Câmara de Lobos", "Região Autónoma da Madeira"),
     ("Machico", "Região Autónoma da Madeira"),
 )
-
-
-def render_portuguese_mc(question, letters, choices):
-    prompt = f"Pergunta de escolha múltipla: {question}\n"
-    prompt += "".join(f"- {choice}={letter}\n" for letter, choice in zip(letters, choices))
-    prompt += "\nResponde apenas com a letra da resposta correta."
-    return prompt
 
 
 def conversation_for(question, choices, correct_choice):

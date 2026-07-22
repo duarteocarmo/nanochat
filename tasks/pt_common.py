@@ -1,6 +1,13 @@
 """Shared helpers for European Portuguese conversation tasks."""
 
 
+def render_portuguese_mc(*, question, letters, choices):
+    prompt = f"Pergunta de escolha múltipla: {question}\n"
+    prompt += "".join(f"- {choice}={letter}\n" for letter, choice in zip(letters, choices))
+    prompt += "\nResponde apenas com a letra da resposta correta."
+    return prompt
+
+
 def normalize_conversation(messages):
     role_map = {
         "system": "system",
