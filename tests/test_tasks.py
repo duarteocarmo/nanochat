@@ -7,12 +7,11 @@ python -m pytest tests/test_tasks.py -v
 
 import numpy as np
 import pyarrow as pa
-from tasks.common import Task, TaskMixture, HubDataset, render_mc
+from tasks.common import HubDataset, Task, TaskMixture, render_mc
 from tasks.pt_common import normalize_conversation, render_portuguese_mc
 from tasks.pt_mcq import PTMCQ
 from tasks.ptcore_chat import (
     PTCORE_CHAT_TASKS,
-    PTCityRegionQA,
     PTCoreChatMCQ,
     aggregate_ptcore_chat,
 )
@@ -149,24 +148,22 @@ def test_ptcore_chat_mcq_adapter():
     assert not task.evaluate(conversation=conversation, assistant_response="A")
 
 
-def test_pt_city_region_qa():
-    task = PTCityRegionQA()
-    assert len(task) == 28
-    for index in range(len(task)):
-        conversation = task[index]
-        assert len(conversation["letters"]) == 7
-        assert task.evaluate(
-            conversation=conversation,
-            assistant_response=conversation["messages"][-1]["content"],
-        )
-
-
 def test_ptcore_chat_aggregation_baseline_and_perfect():
+    assert [task["name"] for task in PTCORE_CHAT_TASKS] == [
+        "PT-PortugalBasicQA",
+        "PT-ALBA-Syntax",
+        "PT-CulturaViva",
+        "PT-Exams-Geography",
+        "PT-Exams-Portuguese",
+    ]
     baseline_results = {task["name"]: task["baseline"] for task in PTCORE_CHAT_TASKS}
     baseline = aggregate_ptcore_chat(results=baseline_results)
     assert baseline["metric"] == 0
     assert set(baseline["families"]) == {"portugal", "alba", "cultura_viva", "pt_exams"}
+    assert set(baseline["centered_results"]) == set(baseline_results)
+    assert all(score == 0 for score in baseline["centered_results"].values())
 
     perfect_results = {task["name"]: 1.0 for task in PTCORE_CHAT_TASKS}
     perfect = aggregate_ptcore_chat(results=perfect_results)
     assert perfect["metric"] == 1
+    assert all(score == 1 for score in perfect["centered_results"].values())

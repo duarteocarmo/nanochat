@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# SFT the saved d11 Portuguese education model on one or more CUDA GPUs.
+# Stage 1 SFT of the saved d11 Portuguese education model on one or more CUDA GPUs.
 #
 # Run:
 #   bash runs/ginjinha_250m_education_score_gte2_full_sft.sh
@@ -14,15 +14,16 @@ set -euo pipefail
 # Run identity and storage
 MODEL_TAG="ginjinha_d11_ratio40_education_score_gte2_full_corpus"
 MODEL_STEP="7860"
-WANDB_RUN="${MODEL_TAG}_pt_sft"
+WANDB_RUN="${MODEL_TAG}_pt_sft_stage1"
 HF_MODEL_REPO="duarteocarmo/ginjinha"
 
-# Training
+# Training: short Portuguese knowledge and conversational responses; MCQ is deferred to stage 2.
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-4}"
 MAX_SEQ_LEN="${MAX_SEQ_LEN:-2048}"
-TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-524288}"
+TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-65536}"
+INIT_LR_FRAC="${INIT_LR_FRAC:-0.175}"
 EVAL_EVERY="100"
-EVAL_TOKENS="20971520"
+EVAL_TOKENS="2097152"
 PTCORE_CHAT_EVERY="${PTCORE_CHAT_EVERY:-100}"
 
 # Runtime and derived paths
@@ -31,7 +32,7 @@ export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
 HF_BASE_RUN_URI="hf://$HF_MODEL_REPO/$MODEL_TAG"
 HF_SFT_RUN_URI="hf://$HF_MODEL_REPO/$WANDB_RUN"
 BASE_CHECKPOINT_DIR="$NANOCHAT_BASE_DIR/base_checkpoints/$MODEL_TAG"
-SFT_CHECKPOINT_DIR="$NANOCHAT_BASE_DIR/chatsft_checkpoints/$MODEL_TAG"
+SFT_CHECKPOINT_DIR="$NANOCHAT_BASE_DIR/chatsft_checkpoints/$WANDB_RUN"
 mkdir -p "$NANOCHAT_BASE_DIR"
 
 if ! command -v nvidia-smi > /dev/null; then
@@ -76,13 +77,35 @@ echo "Downloaded base checkpoint step $MODEL_STEP and tokenizer from $HF_BASE_RU
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m scripts.chat_sft -- \
     --model-tag="$MODEL_TAG" \
     --model-step="$MODEL_STEP" \
+    --output-tag="$WANDB_RUN" \
     --load-optimizer=0 \
     --max-seq-len="$MAX_SEQ_LEN" \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
+    --init-lr-frac="$INIT_LR_FRAC" \
+    --warmup-ratio=0.05 \
     --eval-every="$EVAL_EVERY" \
     --eval-tokens="$EVAL_TOKENS" \
     --ptcore-chat-every="$PTCORE_CHAT_EVERY" \
+    --save-every=100 \
+    --max-assistant-tokens=512 \
+    --pt-wikipedia-epochs=1 \
+    --pt-wikipedia-max-examples=10000 \
+    --pt-culture-epochs=1 \
+    --pt-culture-max-examples=25000 \
+    --pt-nemotron-general-epochs=0 \
+    --pt-smoltalk-magpie-epochs=1 \
+    --pt-smoltalk-magpie-max-examples=1000 \
+    --pt-smoltalk-rewrite-epochs=0 \
+    --pt-smoltalk-tulu-epochs=1 \
+    --pt-smoltalk-tulu-max-examples=10000 \
+    --pt-persona-instruction-epochs=2 \
+    --pt-nemotron-instruction-epochs=2 \
+    --pt-smoltalk-everyday-epochs=5 \
+    --pt-linguistics-epochs=5 \
+    --pt-mmlu-epochs=0 \
+    --pt-goldenswag-epochs=0 \
+    --pt-boolq-epochs=0 \
     --run="$WANDB_RUN" \
     "$@"
 

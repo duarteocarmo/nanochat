@@ -8,6 +8,22 @@ def render_portuguese_mc(*, question, letters, choices):
     return prompt
 
 
+def conversation_indices(dataset, tokenizer, max_assistant_tokens, stop=None):
+    if max_assistant_tokens < 0:
+        return None
+    if stop == 0:
+        return []
+    indices = []
+    for index in range(len(dataset)):
+        conversation = normalize_conversation(messages=dataset[index]["messages"])
+        _, loss_mask = tokenizer.render_conversation(conversation)
+        if sum(loss_mask) <= max_assistant_tokens:
+            indices.append(index)
+        if stop is not None and len(indices) == stop:
+            break
+    return indices
+
+
 def normalize_conversation(messages):
     role_map = {
         "system": "system",

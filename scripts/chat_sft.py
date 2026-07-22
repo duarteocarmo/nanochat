@@ -20,6 +20,7 @@ from nanochat.common import compute_init, compute_cleanup, print0, DummyWandb, g
 from nanochat.tokenizer import get_token_bytes
 from nanochat.checkpoint_manager import save_checkpoint, load_model, load_optimizer_state
 from nanochat.loss_eval import evaluate_bpb
+from nanochat.engine import Engine
 import torch.distributed as dist
 from nanochat.flash_attention import HAS_FA3
 from scripts.chat_eval import run_chat_eval
@@ -29,6 +30,14 @@ from tasks.pt_amalia_sft import PTAmaliaSFT
 from tasks.pt_mcq import PTMCQ
 from tasks.pt_smoltalk import PTSmolTalk
 from tasks.ptcore_chat import PTCORE_CHAT_TASK_NAMES, aggregate_ptcore_chat
+
+CHAT_PROMPTS = [
+    "Olá, tudo bem?",
+    "Sabes qual é a capital de Portugal?",
+    "Quem escreveu Os Lusíadas?",
+    "O que aconteceu em Portugal no 25 de Abril de 1974?",
+    "Explica a diferença entre português europeu e português brasileiro.",
+]
 
 # -----------------------------------------------------------------------------
 # CLI arguments
@@ -40,6 +49,7 @@ parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (e
 # Model loading
 parser.add_argument("--model-tag", type=str, default=None, help="model tag to load from")
 parser.add_argument("--model-step", type=int, default=None, help="model step to load from")
+parser.add_argument("--output-tag", type=str, default=None, help="checkpoint directory name (default: model tag)")
 parser.add_argument("--load-optimizer", type=int, default=1, help="warm-start optimizer from pretrained checkpoint (0=no, 1=yes)")
 # Training horizon
 parser.add_argument("--num-iterations", type=int, default=-1, help="number of optimization steps (-1 = full epoch)")
@@ -59,6 +69,7 @@ parser.add_argument("--final-lr-frac", type=float, default=0.0, help="final LR a
 parser.add_argument("--eval-every", type=int, default=200, help="evaluate val bpb every N steps (-1 = disable)")
 parser.add_argument("--eval-tokens", type=int, default=40*524288, help="number of tokens to evaluate val loss on")
 parser.add_argument("--ptcore-chat-every", type=int, default=200, help="evaluate PTCORE-Chat every N steps (-1 = disable)")
+parser.add_argument("--sample-every", type=int, default=100, help="sample chat responses every N steps (-1 = disable)")
 parser.add_argument("--ptcore-chat-max-per-task", type=int, default=-1, help="max problems per PTCORE-Chat task (-1 = all)")
 # Data mixture
 parser.add_argument("--pt-smoltalk-everyday-epochs", type=int, default=1)
@@ -74,6 +85,14 @@ parser.add_argument("--pt-linguistics-epochs", type=int, default=1)
 parser.add_argument("--pt-mmlu-epochs", type=int, default=3)
 parser.add_argument("--pt-goldenswag-epochs", type=int, default=3)
 parser.add_argument("--pt-boolq-epochs", type=int, default=1)
+parser.add_argument("--pt-wikipedia-max-examples", type=int, default=-1)
+parser.add_argument("--pt-culture-max-examples", type=int, default=-1)
+parser.add_argument("--pt-nemotron-general-max-examples", type=int, default=-1)
+parser.add_argument("--pt-smoltalk-magpie-max-examples", type=int, default=-1)
+parser.add_argument("--pt-smoltalk-rewrite-max-examples", type=int, default=-1)
+parser.add_argument("--pt-smoltalk-tulu-max-examples", type=int, default=-1)
+parser.add_argument("--max-assistant-tokens", type=int, default=-1, help="exclude conversations with longer assistant responses (-1 = disable)")
+parser.add_argument("--save-every", type=int, default=-1, help="save a checkpoint every N steps (-1 = final only)")
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -169,35 +188,36 @@ for group in optimizer.param_groups:
     group["initial_lr"] = group["lr"]
 
 # SFT data mixture and DataLoader
+def stop_at(max_examples):
+    return None if max_examples < 0 else max_examples
+
 train_tasks = [
-    *[PTAmaliaSFT(subset="pt_wikipedia", split="train") for _ in range(args.pt_wikipedia_epochs)], # 95,592 rows per epoch
-    *[PTAmaliaSFT(subset="pt_culture", split="train") for _ in range(args.pt_culture_epochs)], # 88,058 rows per epoch
-    *[PTAmaliaSFT(subset="pt_nemotron_general", split="train") for _ in range(args.pt_nemotron_general_epochs)], # 69,304 rows per epoch
-    *[PTSmolTalk(subset="magpie", split="train") for _ in range(args.pt_smoltalk_magpie_epochs)], # 47,500 rows per epoch
-    *[PTSmolTalk(subset="rewrite", split="train") for _ in range(args.pt_smoltalk_rewrite_epochs)], # 28,500 rows per epoch
-    *[PTSmolTalk(subset="tulu", split="train") for _ in range(args.pt_smoltalk_tulu_epochs)], # 28,470 rows per epoch
-    *[PTAmaliaSFT(subset="pt_persona_instruction", split="train") for _ in range(args.pt_persona_instruction_epochs)], # 8,902 rows per epoch
-    *[PTAmaliaSFT(subset="pt_nemotron_instruction", split="train") for _ in range(args.pt_nemotron_instruction_epochs)], # 4,394 rows per epoch
-    *[PTSmolTalk(subset="everyday", split="train") for _ in range(args.pt_smoltalk_everyday_epochs)], # 2,060 rows per epoch
-    *[PTAmaliaSFT(subset="pt_linguistics", split="train") for _ in range(args.pt_linguistics_epochs)], # 196 rows per epoch
-    *[PTMCQ(subset="mmlu", split="train", permutation_seed=epoch) for epoch in range(args.pt_mmlu_epochs)], # 15,674 rows per epoch
-    *[PTMCQ(subset="goldenswag", split="train", permutation_seed=epoch) for epoch in range(args.pt_goldenswag_epochs)], # 1,524 rows per epoch
-    *[PTMCQ(subset="boolq", split="train", permutation_seed=epoch) for epoch in range(args.pt_boolq_epochs)], # 9,388 rows per epoch
-] # 433,958 rows with default epoch settings
+    *[PTAmaliaSFT(subset="pt_wikipedia", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_wikipedia_max_examples)) for _ in range(args.pt_wikipedia_epochs)],
+    *[PTAmaliaSFT(subset="pt_culture", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_culture_max_examples)) for _ in range(args.pt_culture_epochs)],
+    *[PTAmaliaSFT(subset="pt_nemotron_general", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_nemotron_general_max_examples)) for _ in range(args.pt_nemotron_general_epochs)],
+    *[PTSmolTalk(subset="magpie", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_smoltalk_magpie_max_examples)) for _ in range(args.pt_smoltalk_magpie_epochs)],
+    *[PTSmolTalk(subset="rewrite", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_smoltalk_rewrite_max_examples)) for _ in range(args.pt_smoltalk_rewrite_epochs)],
+    *[PTSmolTalk(subset="tulu", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens, stop=stop_at(args.pt_smoltalk_tulu_max_examples)) for _ in range(args.pt_smoltalk_tulu_epochs)],
+    *[PTAmaliaSFT(subset="pt_persona_instruction", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens) for _ in range(args.pt_persona_instruction_epochs)],
+    *[PTAmaliaSFT(subset="pt_nemotron_instruction", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens) for _ in range(args.pt_nemotron_instruction_epochs)],
+    *[PTSmolTalk(subset="everyday", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens) for _ in range(args.pt_smoltalk_everyday_epochs)],
+    *[PTAmaliaSFT(subset="pt_linguistics", split="train", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens) for _ in range(args.pt_linguistics_epochs)],
+    *[PTMCQ(subset="mmlu", split="train", permutation_seed=epoch) for epoch in range(args.pt_mmlu_epochs)],
+    *[PTMCQ(subset="goldenswag", split="train", permutation_seed=epoch) for epoch in range(args.pt_goldenswag_epochs)],
+    *[PTMCQ(subset="boolq", split="train", permutation_seed=epoch) for epoch in range(args.pt_boolq_epochs)],
+]
 train_dataset = TaskMixture(train_tasks)
 print0(f"Training mixture: {len(train_dataset):,} rows")
 val_dataset = TaskMixture([
-    PTSmolTalk(subset="magpie", split="validation"), # 2,500 test rows
-    PTAmaliaSFT(subset="pt_wikipedia", split="validation"), # 1,951 rows
-    PTAmaliaSFT(subset="pt_culture", split="validation"), # 1,798 rows
-    PTSmolTalk(subset="rewrite", split="validation"), # 1,500 test rows
-    PTSmolTalk(subset="tulu", split="validation"), # 1,500 test rows
-    PTAmaliaSFT(subset="pt_nemotron_general", split="validation"), # 1,415 rows
-    PTSmolTalk(subset="everyday", split="validation"), # 200 test rows
-    PTAmaliaSFT(subset="pt_persona_instruction", split="validation"), # 182 rows
-    PTAmaliaSFT(subset="pt_nemotron_instruction", split="validation"), # 90 rows
-    PTAmaliaSFT(subset="pt_linguistics", split="validation"), # 4 rows
-]) # 11,140 rows total
+    PTAmaliaSFT(subset="pt_wikipedia", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTAmaliaSFT(subset="pt_culture", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTSmolTalk(subset="magpie", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTSmolTalk(subset="tulu", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTSmolTalk(subset="everyday", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTAmaliaSFT(subset="pt_persona_instruction", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTAmaliaSFT(subset="pt_nemotron_instruction", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+    PTAmaliaSFT(subset="pt_linguistics", split="validation", tokenizer=tokenizer, max_assistant_tokens=args.max_assistant_tokens),
+])
 print0(f"Validation mixture: {len(val_dataset):,} held-out rows")
 # DataLoader is defined here, it emits inputs, targets : 2D tensors of shape (device_batch_size, max_seq_len)
 # A big problem is that we don't know the final num_iterations in advance. So we create
@@ -404,13 +424,39 @@ while True:
             "total_training_flops": flops_so_far,
             "ptcore_chat_metric": ptcore_chat["metric"],
             **{f"ptcore_chat/{family}": score for family, score in ptcore_chat["families"].items()},
-            **{f"ptcore_chat/{task_name}": accuracy for task_name, accuracy in task_results.items()},
+            **{f"ptcore_chat/accuracy/{task_name}": accuracy for task_name, accuracy in task_results.items()},
+            **{f"ptcore_chat/centered/{task_name}": score for task_name, score in ptcore_chat["centered_results"].items()},
         })
         model.train()
 
-    # save checkpoint at the end of the run (all ranks participate so each saves its optimizer shard)
-    if last_step:
-        output_dirname = args.model_tag if args.model_tag else f"d{depth}" # e.g. d12
+    # once in a while: sample chat responses (master process only)
+    if args.sample_every > 0 and master_process and (last_step or (step > 0 and step % args.sample_every == 0)):
+        model.eval()
+        engine = Engine(model=orig_model, tokenizer=tokenizer)
+        sample_log_data = {"step": step, "total_training_flops": flops_so_far}
+        for index, prompt in enumerate(CHAT_PROMPTS):
+            conversation = {"messages": [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": ""},
+            ]}
+            prompt_tokens = tokenizer.render_for_completion(conversation)
+            prefix_len = len(prompt_tokens)
+            samples, _ = engine.generate_batch(
+                tokens=prompt_tokens,
+                num_samples=1,
+                max_tokens=256,
+                temperature=0.0,
+                top_k=None,
+            )
+            response = tokenizer.decode(samples[0][prefix_len:])
+            print0(f"[{prompt}] → {response}")
+            sample_log_data[f"sample/{index}"] = response
+        wandb_run.log(sample_log_data)
+        model.train()
+
+    # save checkpoints on all ranks so each writes its optimizer shard
+    if last_step or (args.save_every > 0 and step > 0 and step % args.save_every == 0):
+        output_dirname = args.output_tag or args.model_tag or f"d{depth}" # e.g. d12
         checkpoint_dir = os.path.join(base_dir, "chatsft_checkpoints", output_dirname)
         save_checkpoint(
             checkpoint_dir,
