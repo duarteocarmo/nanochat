@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Compare fixed-compute d8 pretraining runs on all data, score >= 1, and score >= 2.
+# Compare fixed-compute d8 pretraining runs on all data and scores >= 1, >= 2, and >= 3.
 # Validation remains unfiltered and the final evaluation uses every row of the five-task PTCORE.
 #
 # Run:
@@ -15,7 +15,7 @@ mkdir -p "$NANOCHAT_BASE_DIR"
 MODEL_TAG_PREFIX="ginjinha"
 WANDB_RUN_PREFIX="ginjinha"
 HF_MODEL_REPO="${HF_MODEL_REPO:-duarteocarmo/ginjinha}"
-TARGET_PARAM_DATA_RATIO="30"
+TARGET_PARAM_DATA_RATIO="40"
 NUM_TRAIN_SHARDS="170"
 MAX_SEQ_LEN="2048"
 TOTAL_BATCH_SIZE="524288"
@@ -123,3 +123,4 @@ run_experiment() {
 run_experiment "all_scores" -1
 run_experiment "score_gte1" 1
 run_experiment "score_gte2" 2
+run_experiment "score_gte3" 3
