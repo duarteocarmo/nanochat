@@ -87,7 +87,8 @@ run_experiment() {
         --max-seq-len="$MAX_SEQ_LEN" \
         --total-batch-size="$TOTAL_BATCH_SIZE" \
         --eval-every=1000 \
-        --core-metric-every=-1 \
+        --core-metric-every=1000 \
+        --core-metric-max-per-task=-1 \
         --sample-every=-1 \
         --device-batch-size="$DEVICE_BATCH_SIZE" \
         $FP8_ARG \
