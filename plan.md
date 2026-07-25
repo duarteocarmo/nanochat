@@ -14,13 +14,10 @@
 ## P1 PTCORE
 - [x] Standardize PTCORE sources into `duarteocarmo/ptcore-eval`.
 - [x] Use one HF config/subset per PTCORE task.
-- [x] Keep `duarteocarmo/sst2-pt-mini`.
-- [x] Keep `duarteocarmo/scala-pt`.
-- [x] Keep `duarteocarmo/portugal-basic-qa-ptcore`.
-- [x] Add `amalia-llm/alba_mcq`.
-- [x] Add `amalia-llm/cultura-viva-pt-mcq`.
-- [x] Add `amalia-llm/pt_exams`.
-- [x] Add `amalia-llm/piqa-mt-pt`.
+- [x] Use five equally weighted tasks: SST2-PT, Portugal Basic QA, combined ALBA-MCQ, CulturaVivaPT, and combined PT Exams History + Geography.
+- [x] Pool all eight ALBA-MCQ domains, including lexicology, into one task.
+- [x] Evaluate every row by default.
+- [x] Add a full-row five-task educational-score ablation run that uploads each result to the Hugging Face model repo.
 - [x] Replace base `core` eval with PTCORE.
 - [x] Support per-task few-shot config for future PTCORE variants.
 - [x] Print selected/available example counts during PTCORE eval.

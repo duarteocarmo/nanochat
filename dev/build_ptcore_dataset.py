@@ -129,21 +129,6 @@ def adapt_sst2(row: dict, index: int, source: str, config: str, split: str) -> d
     )
 
 
-def adapt_scala(row: dict, index: int, source: str, config: str, split: str) -> dict:
-    label = row["label"].strip().lower()
-    return normalized_row(
-        row_id=f"scala_pt_{split}_{index:06d}",
-        task="scala_pt",
-        source=source,
-        source_config=config,
-        source_split=split,
-        question=f"A frase seguinte está escrita corretamente em português?\n\nFrase: {row['text']}",
-        choices=["não", "sim"],
-        correct_choice=1 if label == "correct" else 0,
-        metadata={"original_label": row["label"], "corruption_type": row.get("corruption_type")},
-    )
-
-
 def adapt_portugal_basic_qa(row: dict, index: int, source: str, config: str, split: str) -> dict:
     choices = row["choices"]
     label = row.get("label")
@@ -167,7 +152,7 @@ def adapt_portugal_basic_qa(row: dict, index: int, source: str, config: str, spl
 def adapt_alba(row: dict, index: int, source: str, config: str, split: str) -> dict:
     return normalized_row(
         row_id=f"alba_mcq_{clean_task_name(config)}_{index:06d}",
-        task=f"alba_mcq_{clean_task_name(config)}",
+        task="alba_mcq",
         source=source,
         source_config=config,
         source_split=split,
@@ -200,10 +185,13 @@ def adapt_cultura_viva(row: dict, index: int, source: str, config: str, split: s
     )
 
 
-def adapt_pt_exams(row: dict, index: int, source: str, config: str, split: str) -> dict:
+def adapt_pt_exams(row: dict, index: int, source: str, config: str, split: str) -> dict | None:
+    subject = clean_task_name(row.get("subject") or config)
+    if subject not in {"geography", "history_a"}:
+        return None
     return normalized_row(
-        row_id=f"pt_exams_{clean_task_name(config)}_{index:06d}",
-        task=f"pt_exams_{clean_task_name(row.get('subject') or config)}",
+        row_id=f"pt_exams_{subject}_{index:06d}",
+        task="pt_exams_history_geography",
         source=source,
         source_config=config,
         source_split=split,
@@ -221,23 +209,6 @@ def adapt_pt_exams(row: dict, index: int, source: str, config: str, split: str) 
     )
 
 
-def adapt_piqa(row: dict, index: int, source: str, config: str, split: str) -> dict | None:
-    label = int(row["label"])
-    if label not in {0, 1}:
-        return None
-    return normalized_row(
-        row_id=f"piqa_mt_pt_{split}_{index:06d}",
-        task="piqa_mt_pt",
-        source=source,
-        source_config=config,
-        source_split=split,
-        question=f"Qual é a melhor solução para o objetivo seguinte?\n\nObjetivo: {row['goal']}",
-        choices=[row["sol1"], row["sol2"]],
-        correct_choice=label,
-        metadata={"goal": row.get("goal")},
-    )
-
-
 TaskAdapter = Callable[[dict, int, str, str, str], dict | None]
 
 
@@ -247,12 +218,6 @@ SOURCES: list[dict] = [
         "config": "default",
         "split": "test",
         "adapter": adapt_sst2,
-    },
-    {
-        "repo_id": "duarteocarmo/scala-pt",
-        "config": "default",
-        "split": "test",
-        "adapter": adapt_scala,
     },
     {
         "repo_id": "duarteocarmo/portugal-basic-qa-ptcore",
@@ -271,6 +236,7 @@ SOURCES: list[dict] = [
             "culture_bound_semantics",
             "discourse_analysis",
             "language_variety",
+            "lexicology",
             "morphology",
             "phonetics_phonology",
             "syntax",
@@ -288,12 +254,6 @@ SOURCES: list[dict] = [
         "config": "default",
         "split": "test",
         "adapter": adapt_pt_exams,
-    },
-    {
-        "repo_id": "amalia-llm/piqa-mt-pt",
-        "config": "default",
-        "split": "validation",
-        "adapter": adapt_piqa,
     },
 ]
 

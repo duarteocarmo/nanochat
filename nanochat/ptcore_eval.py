@@ -17,23 +17,10 @@ from tasks.common import load_hub_dataset
 PTCORE_REPO_ID = "duarteocarmo/ptcore-eval"
 PTCORE_TASKS = [
     {"name": "sst2_pt_mini", "num_fewshot": 0},
-    {"name": "scala_pt", "num_fewshot": 0},
     {"name": "portugal_basic_qa", "num_fewshot": 0},
-    {"name": "alba_mcq_culture_bound_semantics", "num_fewshot": 0},
-    {"name": "alba_mcq_discourse_analysis", "num_fewshot": 0},
-    {"name": "alba_mcq_language_variety", "num_fewshot": 0},
-    {"name": "alba_mcq_morphology", "num_fewshot": 0},
-    {"name": "alba_mcq_phonetics_phonology", "num_fewshot": 0},
-    {"name": "alba_mcq_syntax", "num_fewshot": 0},
-    {"name": "alba_mcq_word_play", "num_fewshot": 0},
+    {"name": "alba_mcq", "num_fewshot": 0},
     {"name": "cultura_viva_pt_mcq", "num_fewshot": 0},
-    {"name": "pt_exams_bio_geo", "num_fewshot": 0},
-    {"name": "pt_exams_geography", "num_fewshot": 0},
-    {"name": "pt_exams_history_a", "num_fewshot": 0},
-    {"name": "pt_exams_mathematics_a", "num_fewshot": 0},
-    {"name": "pt_exams_philosophy", "num_fewshot": 0},
-    {"name": "pt_exams_portuguese", "num_fewshot": 0},
-    {"name": "piqa_mt_pt", "num_fewshot": 0},
+    {"name": "pt_exams_history_geography", "num_fewshot": 0},
 ]
 
 
