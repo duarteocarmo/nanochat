@@ -53,10 +53,6 @@ else
     echo "FP8 disabled"
 fi
 
-# Load secrets from .envrc, abort if missing
-[ -f ".envrc" ] || { echo ".envrc not found, aborting" >&2; exit 1; }
-source .envrc && rm -f .envrc
-
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 [ -d ".venv" ] || uv venv
