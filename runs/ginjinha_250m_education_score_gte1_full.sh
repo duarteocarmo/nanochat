@@ -2,21 +2,21 @@
 set -euo pipefail
 
 # Train the d11 Portuguese base model on enough score >=1 data to cover the full filtered corpus.
-# The estimated effective filtered corpus is 9.3B tokens; ratio 91 trains on 9.37B tokens.
+# The estimated effective filtered corpus is 9.3B tokens; ratio 95 trains on ~9.37B tokens.
 # Validation remains unfiltered.
 #
 # Run:
 #   bash runs/ginjinha_250m_education_score_gte1_full.sh
 
 # Run identity and storage
-RUN_NAME="ginjinha_d11_ratio91_ptcore5_education_score_gte1_2nd"
+RUN_NAME="ginjinha_d11_ratio95_ptcore5_education_score_gte1"
 MODEL_TAG="$RUN_NAME"
 WANDB_RUN="$RUN_NAME"
 HF_MODEL_REPO="duarteocarmo/ginjinha"
 
 # Model and data
 DEPTH="11"
-TARGET_PARAM_DATA_RATIO="91"
+TARGET_PARAM_DATA_RATIO="95"
 MIN_EDUCATIONAL_SCORE="1"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-32}"
 TOKENIZER_SHARDS="8"
