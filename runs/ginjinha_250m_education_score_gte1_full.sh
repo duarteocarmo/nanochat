@@ -9,7 +9,7 @@ set -euo pipefail
 #   bash runs/ginjinha_250m_education_score_gte1_full.sh
 
 # Run identity and storage
-RUN_NAME="ginjinha_d11_ratio91_ptcore5_education_score_gte1"
+RUN_NAME="ginjinha_d11_ratio91_ptcore5_education_score_gte1_2nd"
 MODEL_TAG="$RUN_NAME"
 WANDB_RUN="$RUN_NAME"
 HF_MODEL_REPO="duarteocarmo/ginjinha"
