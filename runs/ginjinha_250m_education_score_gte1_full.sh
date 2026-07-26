@@ -46,7 +46,7 @@ echo "Using $NPROC_PER_NODE GPU process(es), device batch size $DEVICE_BATCH_SIZ
 
 FP8_ARG=""
 GPU_NAMES="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
-if echo "$GPU_NAMES" | grep -q "H100"; then
+if echo "$GPU_NAMES" | grep -qE "H100|H200"; then
     FP8_ARG="--fp8"
     echo "FP8 enabled"
 else
