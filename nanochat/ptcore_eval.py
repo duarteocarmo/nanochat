@@ -17,10 +17,11 @@ from tasks.common import load_hub_dataset
 PTCORE_REPO_ID = "duarteocarmo/ptcore-eval"
 PTCORE_TASKS = [
     {"name": "sst2_pt_mini", "num_fewshot": 0},
-    {"name": "portugal_basic_qa", "num_fewshot": 0},
     {"name": "alba_mcq", "num_fewshot": 0},
     {"name": "cultura_viva_pt_mcq", "num_fewshot": 0},
     {"name": "pt_exams_history_geography", "num_fewshot": 0},
+    {"name": "saudade_pt", "num_fewshot": 0},
+    {"name": "openbookqa_mt_pt", "num_fewshot": 0},
 ]
 
 

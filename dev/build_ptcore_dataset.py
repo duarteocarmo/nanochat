@@ -149,6 +149,35 @@ def adapt_portugal_basic_qa(row: dict, index: int, source: str, config: str, spl
     )
 
 
+def adapt_saudade(row: dict, index: int, source: str, config: str, split: str) -> dict:
+    return normalized_row(
+        row_id=f"saudade_pt_{index:06d}",
+        task="saudade_pt",
+        source=source,
+        source_config=config,
+        source_split=split,
+        question=row["prompt"],
+        choices=row["facts_pair"],
+        correct_choice=int(row["answer_index"]),
+        metadata={"entity": row.get("entity"), "category": row.get("category")},
+    )
+
+
+def adapt_openbookqa(row: dict, index: int, source: str, config: str, split: str) -> dict:
+    labels = row["choices"]["label"]
+    return normalized_row(
+        row_id=f"openbookqa_mt_pt_{index:06d}",
+        task="openbookqa_mt_pt",
+        source=source,
+        source_config=config,
+        source_split=split,
+        question=row["question_stem"],
+        choices=row["choices"]["text"],
+        correct_choice=labels.index(row["answerKey"]),
+        metadata={"source_id": row.get("id"), "answerKey": row["answerKey"]},
+    )
+
+
 def adapt_alba(row: dict, index: int, source: str, config: str, split: str) -> dict:
     return normalized_row(
         row_id=f"alba_mcq_{clean_task_name(config)}_{index:06d}",
@@ -224,6 +253,18 @@ SOURCES: list[dict] = [
         "config": "default",
         "split": "val",
         "adapter": adapt_portugal_basic_qa,
+    },
+    {
+        "repo_id": "amalia-llm/saudade-pt",
+        "config": "default",
+        "split": "test",
+        "adapter": adapt_saudade,
+    },
+    {
+        "repo_id": "amalia-llm/openbookqa-mt-pt",
+        "config": "main",
+        "split": "test",
+        "adapter": adapt_openbookqa,
     },
     *[
         {
