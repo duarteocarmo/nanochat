@@ -41,6 +41,7 @@ print_banner()
 parser = argparse.ArgumentParser(description="Pretrain base model")
 # Logging
 parser.add_argument("--run", type=str, default="dummy", help="wandb run name ('dummy' disables wandb logging)")
+parser.add_argument("--wandb-project", type=str, default="ginjinha")
 # Runtime
 parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (empty = autodetect)")
 parser.add_argument("--seed", type=int, default=42, help="random seed for model initialization")
@@ -55,6 +56,7 @@ parser.add_argument("--max-seq-len", type=int, default=2048, help="max context l
 parser.add_argument("--window-pattern", type=str, default="SSSL", help="sliding window pattern tiled across layers: L=full, S=half context (e.g. 'SSL')")
 # Training data
 parser.add_argument("--min-educational-score", type=int, default=-1, choices=[-1, 0, 1, 2, 3, 4], help="minimum educational score to train on (-1 = no filter)")
+parser.add_argument("--data-seed", type=int, default=-1, help="training shard shuffle seed (-1 = sorted order)")
 # Training horizon (only one used, in order of precedence)
 parser.add_argument("--num-iterations", type=int, default=-1, help="explicit number of optimization steps (-1 = disable)")
 parser.add_argument("--target-flops", type=float, default=-1.0, help="calculate num_iterations to reach target_flops (-1 = disable)")
@@ -100,7 +102,11 @@ print0(f"COMPUTE_DTYPE: {COMPUTE_DTYPE} ({COMPUTE_DTYPE_REASON})")
 
 # wandb logging init
 use_dummy_wandb = args.run == "dummy" or not master_process
-wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="ginjinha", name=args.run, config=user_config)
+wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(
+    project=args.wandb_project,
+    name=args.run,
+    config=user_config,
+)
 
 # Flash Attention status
 from nanochat.flash_attention import USE_FA3
@@ -340,6 +346,7 @@ train_loader = tokenizing_distributed_data_loader_with_state_bos_bestfit(
     device=device,
     resume_state_dict=dataloader_resume_state_dict,
     minimum_educational_score=args.min_educational_score,
+    data_seed=args.data_seed,
 )
 # Validation always uses the complete held-out distribution.
 build_val_loader = lambda: tokenizing_distributed_data_loader_bos_bestfit(tokenizer=tokenizer, B=args.device_batch_size, T=args.max_seq_len, split="val", device=device)

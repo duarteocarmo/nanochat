@@ -16,6 +16,8 @@ Fallback to the original if you have very limited data AND long documents:
 https://github.com/karpathy/nanochat/blob/3c3a3d7/nanochat/dataloader.py#L78-L117
 """
 
+import random
+
 import torch
 import pyarrow.compute as pyarrow_compute
 import pyarrow.parquet as pq
@@ -33,7 +35,7 @@ def _texts_with_minimum_educational_score(row_group, minimum_educational_score):
     return row_group.filter(mask=score_mask).column("text").to_pylist()
 
 
-def _document_batches(split, resume_state_dict, tokenizer_batch_size, minimum_educational_score=-1):
+def _document_batches(split, resume_state_dict, tokenizer_batch_size, minimum_educational_score=-1, data_seed=-1):
     """
     Infinite iterator over document batches (list of text strings) from parquet files.
 
@@ -50,6 +52,8 @@ def _document_batches(split, resume_state_dict, tokenizer_batch_size, minimum_ed
     parquet_paths = list_parquet_files(warn_on_legacy=warn_on_legacy)
     assert len(parquet_paths) != 0, "No dataset parquet files found, did you run dataset.py?"
     parquet_paths = parquet_paths[:-1] if split == "train" else parquet_paths[-1:]
+    if split == "train" and data_seed != -1:
+        random.Random(data_seed).shuffle(parquet_paths)
 
     resume_pq_idx = resume_state_dict["pq_idx"] if resume_state_dict is not None else 0
     resume_rg_idx = resume_state_dict["rg_idx"] if resume_state_dict is not None else None
@@ -90,7 +94,7 @@ def tokenizing_distributed_data_loader_with_state_bos_bestfit(
     tokenizer, B, T, split,
     tokenizer_threads=4, tokenizer_batch_size=128,
     device="cuda", resume_state_dict=None,
-    buffer_size=1000, minimum_educational_score=-1
+    buffer_size=1000, minimum_educational_score=-1, data_seed=-1
 ):
     """
     BOS-aligned dataloader with Best-Fit Cropping.
@@ -116,6 +120,7 @@ def tokenizing_distributed_data_loader_with_state_bos_bestfit(
         resume_state_dict=resume_state_dict,
         tokenizer_batch_size=tokenizer_batch_size,
         minimum_educational_score=minimum_educational_score,
+        data_seed=data_seed,
     )
     bos_token = tokenizer.get_bos_token_id()
     doc_buffer = []

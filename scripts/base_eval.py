@@ -147,7 +147,8 @@ def main():
         # Write CSV output
         if ddp_rank == 0:
             base_dir = get_base_dir()
-            output_csv_path = os.path.join(base_dir, "base_eval", f"{model_slug}.csv")
+            output_name = args.model_tag or model_slug
+            output_csv_path = os.path.join(base_dir, "base_eval", f"{output_name}.csv")
             os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
             with open(output_csv_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(f"{'Task':<35}, {'Accuracy':<10}, {'Centered':<10}\n")
