@@ -5,6 +5,7 @@ import os
 import random
 import time
 from pathlib import Path
+from typing import TypedDict
 
 import pyarrow
 import pyarrow.parquet as pyarrow_parquet
@@ -13,9 +14,19 @@ from nanochat.common import print0
 from nanochat.core_eval import evaluate_task
 from tasks.common import load_hub_dataset
 
-
 PTCORE_REPO_ID = "duarteocarmo/ptcore-eval"
-PTCORE_TASKS = [
+
+
+class PTCoreTaskRequired(TypedDict):
+    name: str
+    num_fewshot: int
+
+
+class PTCoreTask(PTCoreTaskRequired, total=False):
+    continuation_delimiter: str
+
+
+PTCORE_TASKS: list[PTCoreTask] = [
     {"name": "sst2_pt_mini", "num_fewshot": 0},
     {"name": "alba_mcq", "num_fewshot": 0},
     {"name": "cultura_viva_pt_mcq", "num_fewshot": 0},
@@ -96,7 +107,10 @@ def evaluate_ptcore(
             "continuation_delimiter": task_config.get("continuation_delimiter", " "),
         }
         start_time = time.time()
-        print0(f"Evaluating: {task_name} ({task_meta['num_fewshot']}-shot, type: multiple_choice)... ", end="")
+        print0(
+            f"Evaluating: {task_name} ({task_meta['num_fewshot']}-shot, type: multiple_choice)... ",
+            end="",
+        )
 
         data = load_ptcore_task(
             task_name=task_name, repo_id=repo_id, local_dir=local_dir
@@ -107,7 +121,9 @@ def evaluate_ptcore(
         if max_per_task > 0:
             data = data[:max_per_task]
 
-        accuracy, stats = evaluate_task(model, tokenizer, data, device, task_meta, return_stats=True)
+        accuracy, stats = evaluate_task(  # ty: ignore[not-iterable]
+            model, tokenizer, data, device, task_meta, return_stats=True
+        )
         stats["num_total"] = total_examples
         baseline = random_baseline_for(data=data)
         centered_result = (accuracy - baseline) / (1.0 - baseline)

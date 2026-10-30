@@ -7,6 +7,7 @@ python -m pytest tests/test_tasks.py -v
 
 import numpy as np
 import pyarrow as pa
+
 from tasks.common import HubDataset, Task, TaskMixture, render_mc
 from tasks.pt_common import normalize_conversation, render_portuguese_mc
 from tasks.pt_mcq import PTMCQ
@@ -45,7 +46,7 @@ def test_task_slicing():
     assert len(task) == 5
     assert task[0]["i"] == 5
     # step slicing uses ceil division for the length
-    task = ToyTask(n=10, start=0, stop=10, step=3) # 0, 3, 6, 9
+    task = ToyTask(n=10, start=0, stop=10, step=3)  # 0, 3, 6, 9
     assert len(task) == 4
     assert [task[i]["i"] for i in range(4)] == [0, 3, 6, 9]
 
@@ -56,7 +57,16 @@ def test_mixture_covers_all_examples_deterministically():
     examples = [mixture[i] for i in range(8)]
     # every example appears exactly once
     keys = sorted((ex["tag"], ex["i"]) for ex in examples)
-    assert keys == [("a", 0), ("a", 1), ("a", 2), ("b", 0), ("b", 1), ("b", 2), ("b", 3), ("b", 4)]
+    assert keys == [
+        ("a", 0),
+        ("a", 1),
+        ("a", 2),
+        ("b", 0),
+        ("b", 1),
+        ("b", 2),
+        ("b", 3),
+        ("b", 4),
+    ]
     # the shuffle is deterministic: a second instance yields the same order
     mixture2 = TaskMixture([ToyTask(n=3, tag="a"), ToyTask(n=5, tag="b")])
     assert examples == [mixture2[i] for i in range(8)]
@@ -89,10 +99,12 @@ def test_hub_dataset_shuffle_matches_numpy():
 
 
 def test_normalize_pt_conversation():
-    conversation = normalize_conversation(messages=[
-        {"from": "human", "value": "Pergunta"},
-        {"from": "gpt", "value": "Resposta"},
-    ])
+    conversation = normalize_conversation(
+        messages=[
+            {"from": "human", "value": "Pergunta"},
+            {"from": "gpt", "value": "Resposta"},
+        ]
+    )
     assert conversation["messages"] == [
         {"role": "user", "content": "Pergunta"},
         {"role": "assistant", "content": "Resposta"},
@@ -117,18 +129,22 @@ def test_render_portuguese_mc_letter_binding():
 
 
 def test_pt_mcq_permutations_cover_answer_letters():
-    rows = [{
-        "question": "Quanto é 1+1?",
-        "context": "Usa aritmética.",
-        "choices": ["0", "1", "2", "3"],
-        "answer": 2,
-        "source_id": "example-1",
-    }]
+    rows = [
+        {
+            "question": "Quanto é 1+1?",
+            "context": "Usa aritmética.",
+            "choices": ["0", "1", "2", "3"],
+            "answer": 2,
+            "source_id": "example-1",
+        }
+    ]
     conversations = [
         PTMCQ(subset="mmlu", split="train", permutation_seed=seed, rows=rows)[0]
         for seed in range(4)
     ]
-    answers = {conversation["messages"][-1]["content"] for conversation in conversations}
+    answers = {
+        conversation["messages"][-1]["content"] for conversation in conversations
+    }
     assert answers == {"A", "B", "C", "D"}
     for conversation in conversations:
         answer = conversation["messages"][-1]["content"]
@@ -139,7 +155,13 @@ def test_pt_mcq_permutations_cover_answer_letters():
 def test_ptcore_chat_mcq_adapter():
     task = PTCoreChatMCQ(
         subset="portugal_basic_qa",
-        rows=[{"query": "Qual é a capital?", "choices": ["Porto", "Lisboa", "Faro"], "gold": 1}],
+        rows=[
+            {
+                "query": "Qual é a capital?",
+                "choices": ["Porto", "Lisboa", "Faro"],
+                "gold": 1,
+            }
+        ],
     )
     conversation = task[0]
     assert conversation["letters"] == ("A", "B", "C")

@@ -33,9 +33,8 @@ import urllib.request
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-import pyarrow as pyarrow
-import pyarrow.parquet as parquet
-
+import pyarrow
+from pyarrow import parquet
 
 DEFAULT_OUT_DIR = Path("dev-ignore/ptcore")
 DEFAULT_CACHE_DIR = Path("dev-ignore/ptcore-cache")
@@ -56,8 +55,12 @@ def parquet_urls_for(repo_id: str, config: str, split: str) -> list[str]:
     try:
         return manifest[config][split]
     except KeyError as error:
-        available = {config_name: sorted(splits) for config_name, splits in manifest.items()}
-        raise KeyError(f"Missing {repo_id}/{config}/{split}. Available: {available}") from error
+        available = {
+            config_name: sorted(splits) for config_name, splits in manifest.items()
+        }
+        raise KeyError(
+            f"Missing {repo_id}/{config}/{split}. Available: {available}"
+        ) from error
 
 
 def load_rows(repo_id: str, config: str, split: str, cache_dir: Path) -> list[dict]:
@@ -99,7 +102,9 @@ def normalized_row(
     if not question or not choices:
         raise ValueError(f"Invalid empty question/choices for {row_id}")
     if not 0 <= correct_choice < len(choices):
-        raise ValueError(f"Invalid correct_choice={correct_choice} for {row_id} with {len(choices)} choices")
+        raise ValueError(
+            f"Invalid correct_choice={correct_choice} for {row_id} with {len(choices)} choices"
+        )
     return {
         "id": row_id,
         "task": task,
@@ -129,7 +134,9 @@ def adapt_sst2(row: dict, index: int, source: str, config: str, split: str) -> d
     )
 
 
-def adapt_portugal_basic_qa(row: dict, index: int, source: str, config: str, split: str) -> dict:
+def adapt_portugal_basic_qa(
+    row: dict, index: int, source: str, config: str, split: str
+) -> dict:
     choices = row["choices"]
     label = row.get("label")
     if label:
@@ -163,7 +170,9 @@ def adapt_saudade(row: dict, index: int, source: str, config: str, split: str) -
     )
 
 
-def adapt_openbookqa(row: dict, index: int, source: str, config: str, split: str) -> dict:
+def adapt_openbookqa(
+    row: dict, index: int, source: str, config: str, split: str
+) -> dict:
     labels = row["choices"]["label"]
     return normalized_row(
         row_id=f"openbookqa_mt_pt_{index:06d}",
@@ -188,11 +197,17 @@ def adapt_alba(row: dict, index: int, source: str, config: str, split: str) -> d
         question=row["question"],
         choices=row["choices"],
         correct_choice=int(row["correct_choice"]),
-        metadata={"subject": row.get("subject"), "scores": row.get("scores"), "source_id": row.get("id")},
+        metadata={
+            "subject": row.get("subject"),
+            "scores": row.get("scores"),
+            "source_id": row.get("id"),
+        },
     )
 
 
-def adapt_cultura_viva(row: dict, index: int, source: str, config: str, split: str) -> dict:
+def adapt_cultura_viva(
+    row: dict, index: int, source: str, config: str, split: str
+) -> dict:
     choices = row["choices"]["text"]
     labels = row["choices"]["label"]
     correct_choice = labels.index(row["answerKey"])
@@ -214,7 +229,9 @@ def adapt_cultura_viva(row: dict, index: int, source: str, config: str, split: s
     )
 
 
-def adapt_pt_exams(row: dict, index: int, source: str, config: str, split: str) -> dict | None:
+def adapt_pt_exams(
+    row: dict, index: int, source: str, config: str, split: str
+) -> dict | None:
     subject = clean_task_name(row.get("subject") or config)
     if subject not in {"geography", "history_a"}:
         return None
@@ -299,7 +316,9 @@ SOURCES: list[dict] = [
 ]
 
 
-def iter_normalized_rows(*, cache_dir: Path, max_per_task: int | None = None) -> Iterable[dict]:
+def iter_normalized_rows(
+    *, cache_dir: Path, max_per_task: int | None = None
+) -> Iterable[dict]:
     counts: dict[str, int] = {}
     for source_spec in SOURCES:
         repo_id = source_spec["repo_id"]
@@ -307,7 +326,9 @@ def iter_normalized_rows(*, cache_dir: Path, max_per_task: int | None = None) ->
         split = source_spec["split"]
         adapter: TaskAdapter = source_spec["adapter"]
         print(f"Loading {repo_id} / {config} / {split}")
-        source_rows = load_rows(repo_id=repo_id, config=config, split=split, cache_dir=cache_dir)
+        source_rows = load_rows(
+            repo_id=repo_id, config=config, split=split, cache_dir=cache_dir
+        )
         for index, source_row in enumerate(source_rows):
             row = adapter(source_row, index, repo_id, config, split)
             if row is None:
@@ -352,38 +373,42 @@ def write_dataset(rows: list[dict], out_dir: Path) -> None:
         "configs:",
     ]
     for task in grouped_rows:
-        readme.extend([
-            f"- config_name: {task}",
-            "  data_files:",
-            "  - split: validation",
-            f"    path: data/{task}/validation-*.parquet",
-        ])
-    readme.extend([
-        "---",
-        "",
-        "# PTCORE",
-        "",
-        "Standardized European Portuguese CORE-style multiple-choice evaluation dataset.",
-        "",
-        "Each config is one PTCORE task and exposes a `validation` split.",
-        "",
-        "## Schema",
-        "",
-        "- `id`: stable row id",
-        "- `task`: task/subtask name",
-        "- `source`: original Hugging Face dataset",
-        "- `source_config`: original config/subset",
-        "- `source_split`: original split",
-        "- `question`: prompt/question text",
-        "- `choices`: answer options",
-        "- `correct_choice`: zero-based index into `choices`",
-        "- `metadata`: source-specific JSON string",
-        "",
-        "## Counts",
-        "",
-        "| Config / task | Rows |",
-        "|---|---:|",
-    ])
+        readme.extend(
+            [
+                f"- config_name: {task}",
+                "  data_files:",
+                "  - split: validation",
+                f"    path: data/{task}/validation-*.parquet",
+            ]
+        )
+    readme.extend(
+        [
+            "---",
+            "",
+            "# PTCORE",
+            "",
+            "Standardized European Portuguese CORE-style multiple-choice evaluation dataset.",
+            "",
+            "Each config is one PTCORE task and exposes a `validation` split.",
+            "",
+            "## Schema",
+            "",
+            "- `id`: stable row id",
+            "- `task`: task/subtask name",
+            "- `source`: original Hugging Face dataset",
+            "- `source_config`: original config/subset",
+            "- `source_split`: original split",
+            "- `question`: prompt/question text",
+            "- `choices`: answer options",
+            "- `correct_choice`: zero-based index into `choices`",
+            "- `metadata`: source-specific JSON string",
+            "",
+            "## Counts",
+            "",
+            "| Config / task | Rows |",
+            "|---|---:|",
+        ]
+    )
     for task, task_rows in grouped_rows.items():
         readme.append(f"| `{task}` | {len(task_rows)} |")
     readme.append("")
@@ -406,12 +431,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build standardized PTCORE dataset")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
-    parser.add_argument("--max-per-task", type=int, default=None, help="Limit rows per task for smoke tests")
+    parser.add_argument(
+        "--max-per-task",
+        type=int,
+        default=None,
+        help="Limit rows per task for smoke tests",
+    )
     parser.add_argument("--repo-id", type=str, default="duarteocarmo/ptcore-eval")
     parser.add_argument("--push-to-hub", action="store_true")
     args = parser.parse_args()
 
-    rows = list(iter_normalized_rows(cache_dir=args.cache_dir, max_per_task=args.max_per_task))
+    rows = list(
+        iter_normalized_rows(cache_dir=args.cache_dir, max_per_task=args.max_per_task)
+    )
     if not rows:
         raise RuntimeError("No PTCORE rows were produced")
     write_dataset(rows=rows, out_dir=args.out_dir)

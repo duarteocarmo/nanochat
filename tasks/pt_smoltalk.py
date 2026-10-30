@@ -3,7 +3,6 @@
 from tasks.common import Task, load_hub_dataset
 from tasks.pt_common import conversation_indices, normalize_conversation
 
-
 _SUBSETS = {
     "everyday": "everyday_conversations",
     "magpie": "magpie_ultra",
@@ -13,7 +12,9 @@ _SUBSETS = {
 
 
 class PTSmolTalk(Task):
-    def __init__(self, subset, split, tokenizer=None, max_assistant_tokens=-1, **kwargs):
+    def __init__(
+        self, subset, split, tokenizer=None, max_assistant_tokens=-1, **kwargs
+    ):
         super().__init__(**kwargs)
         if subset not in _SUBSETS:
             raise ValueError(f"Unknown PTSmolTalk subset: {subset}")

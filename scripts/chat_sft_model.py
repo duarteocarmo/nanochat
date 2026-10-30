@@ -30,7 +30,10 @@ def download_model() -> None:
         temporary_destination = f"{destination}.part"
         url = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{remote_path}"
         try:
-            with urllib.request.urlopen(url=url) as response, open(temporary_destination, "wb") as output_file:
+            with (
+                urllib.request.urlopen(url=url) as response,
+                open(temporary_destination, "wb") as output_file,
+            ):
                 shutil.copyfileobj(fsrc=response, fdst=output_file)
             os.replace(temporary_destination, destination)
         finally:
@@ -40,10 +43,12 @@ def download_model() -> None:
 
 
 def respond(engine, tokenizer, prompt: str) -> None:
-    conversation = {"messages": [
-        {"role": "user", "content": prompt},
-        {"role": "assistant", "content": ""},
-    ]}
+    conversation = {
+        "messages": [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": ""},
+        ]
+    }
     prompt_tokens = tokenizer.render_for_completion(conversation)
     samples, _ = engine.generate_batch(
         tokens=prompt_tokens,
@@ -52,7 +57,7 @@ def respond(engine, tokenizer, prompt: str) -> None:
         temperature=0.0,
         top_k=None,
     )
-    print(tokenizer.decode(samples[0][len(prompt_tokens):]))
+    print(tokenizer.decode(samples[0][len(prompt_tokens) :]))
 
 
 def main() -> None:

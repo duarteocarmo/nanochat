@@ -34,7 +34,10 @@ def download_model() -> None:
         temporary_destination = f"{destination}.part"
         url = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{remote_path}"
         try:
-            with urllib.request.urlopen(url=url) as response, open(temporary_destination, "wb") as output_file:
+            with (
+                urllib.request.urlopen(url=url) as response,
+                open(temporary_destination, "wb") as output_file,
+            ):
                 shutil.copyfileobj(fsrc=response, fdst=output_file)
             os.replace(temporary_destination, destination)
         finally:
@@ -43,7 +46,9 @@ def download_model() -> None:
         print(f"Downloaded {local_path}")
 
 
-def continue_text(engine, tokenizer, prompt: str, max_tokens: int, temperature: float, top_k: int) -> None:
+def continue_text(
+    engine, tokenizer, prompt: str, max_tokens: int, temperature: float, top_k: int
+) -> None:
     prompt_tokens = tokenizer.encode(prompt, prepend="<|bos|>")
     samples, _ = engine.generate_batch(
         tokens=prompt_tokens,
@@ -52,16 +57,25 @@ def continue_text(engine, tokenizer, prompt: str, max_tokens: int, temperature: 
         temperature=temperature,
         top_k=top_k,
     )
-    continuation = tokenizer.decode(samples[0][len(prompt_tokens):])
+    continuation = tokenizer.decode(samples[0][len(prompt_tokens) :])
     print(f"{prompt}{continuation}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("prompt", nargs="?", help="Text for the model to continue")
-    parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Maximum new tokens")
-    parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE, help="Sampling temperature")
-    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Sample from the top K tokens")
+    parser.add_argument(
+        "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Maximum new tokens"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=DEFAULT_TEMPERATURE,
+        help="Sampling temperature",
+    )
+    parser.add_argument(
+        "--top-k", type=int, default=DEFAULT_TOP_K, help="Sample from the top K tokens"
+    )
     args = parser.parse_args()
 
     download_model()

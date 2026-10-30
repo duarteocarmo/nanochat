@@ -1,6 +1,11 @@
 import json
 
-from dev.build_ptcore_dataset import adapt_alba, adapt_openbookqa, adapt_pt_exams, adapt_saudade
+from dev.build_ptcore_dataset import (
+    adapt_alba,
+    adapt_openbookqa,
+    adapt_pt_exams,
+    adapt_saudade,
+)
 from nanochat.ptcore_eval import PTCORE_TASKS, random_baseline_for
 
 
@@ -104,9 +109,9 @@ def test_pt_exams_pool_history_and_geography_only():
         split="test",
     )
 
-    assert geography["task"] == "pt_exams_history_geography"
-    assert history["task"] == "pt_exams_history_geography"
-    assert json.loads(geography["metadata"])["subject"] == "Geography"
+    assert geography["task"] == "pt_exams_history_geography"  # ty: ignore[not-subscriptable]
+    assert history["task"] == "pt_exams_history_geography"  # ty: ignore[not-subscriptable]
+    assert json.loads(geography["metadata"])["subject"] == "Geography"  # ty: ignore[not-subscriptable]
     assert mathematics is None
 
 

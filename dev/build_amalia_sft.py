@@ -18,10 +18,9 @@ import urllib.request
 from pathlib import Path
 
 import numpy
-import pyarrow as pyarrow
+import pyarrow
 import pyarrow.json as json_reader
-import pyarrow.parquet as parquet
-
+from pyarrow import parquet
 
 DEFAULT_OUT_DIR = Path("dev-ignore/amalia-sft")
 DEFAULT_CACHE_DIR = Path("dev-ignore/amalia-sft-cache")
@@ -75,17 +74,26 @@ SOURCES = [
         "source_split": "train",
     },
 ]
-SCHEMA = pyarrow.schema([
-    ("id", pyarrow.string()),
-    ("messages", pyarrow.list_(pyarrow.struct([
-        ("role", pyarrow.string()),
-        ("content", pyarrow.string()),
-    ]))),
-    ("source", pyarrow.string()),
-    ("source_config", pyarrow.string()),
-    ("source_split", pyarrow.string()),
-    ("source_index", pyarrow.int64()),
-])
+SCHEMA = pyarrow.schema(
+    [
+        ("id", pyarrow.string()),
+        (
+            "messages",
+            pyarrow.list_(
+                pyarrow.struct(
+                    [
+                        ("role", pyarrow.string()),
+                        ("content", pyarrow.string()),
+                    ]
+                )
+            ),
+        ),
+        ("source", pyarrow.string()),
+        ("source_config", pyarrow.string()),
+        ("source_split", pyarrow.string()),
+        ("source_index", pyarrow.int64()),
+    ]
+)
 
 
 def normalize_conversation(messages: list[dict]) -> dict:
@@ -100,8 +108,14 @@ def normalize_conversation(messages: list[dict]) -> dict:
     for message in messages:
         source_role = message.get("role", message.get("from"))
         content = message.get("content", message.get("value"))
-        normalized.append({"role": role_map.get(source_role, source_role), "content": content})
-    alternating_messages = normalized[1:] if normalized and normalized[0]["role"] == "system" else normalized
+        normalized.append(
+            {"role": role_map.get(source_role, source_role), "content": content}
+        )
+    alternating_messages = (
+        normalized[1:]
+        if normalized and normalized[0]["role"] == "system"
+        else normalized
+    )
     if len(alternating_messages) < 2:
         raise ValueError("Conversation must contain at least one user-assistant turn")
     for index, message in enumerate(alternating_messages):
@@ -122,14 +136,19 @@ def download_source(repo_id: str, filename: str, cache_dir: Path) -> Path:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     request = urllib.request.Request(url=url, headers=headers)
     temporary_path = local_path.with_suffix(local_path.suffix + ".incomplete")
-    with urllib.request.urlopen(request, timeout=120) as response, temporary_path.open("wb") as file:
+    with (
+        urllib.request.urlopen(request, timeout=120) as response,
+        temporary_path.open("wb") as file,
+    ):
         shutil.copyfileobj(fsrc=response, fdst=file)
     temporary_path.replace(local_path)
     print(f"Downloaded {repo_id}/{filename}")
     return local_path
 
 
-def normalized_rows(source: dict, cache_dir: Path, max_per_config: int | None) -> list[dict]:
+def normalized_rows(
+    source: dict, cache_dir: Path, max_per_config: int | None
+) -> list[dict]:
     source_path = download_source(
         repo_id=source["repo_id"],
         filename=source["filename"],
@@ -143,7 +162,9 @@ def normalized_rows(source: dict, cache_dir: Path, max_per_config: int | None) -
     duplicate_count = 0
     for source_index in range(len(messages_column)):
         try:
-            conversation = normalize_conversation(messages=messages_column[source_index].as_py())
+            conversation = normalize_conversation(
+                messages=messages_column[source_index].as_py()
+            )
         except ValueError:
             invalid_count += 1
             continue
@@ -152,17 +173,21 @@ def normalized_rows(source: dict, cache_dir: Path, max_per_config: int | None) -
             duplicate_count += 1
             continue
         seen.add(key)
-        rows.append({
-            "id": f"{source['config']}_{source_index:06d}",
-            "messages": conversation["messages"],
-            "source": source["repo_id"],
-            "source_config": source["source_config"],
-            "source_split": source["source_split"],
-            "source_index": source_index,
-        })
+        rows.append(
+            {
+                "id": f"{source['config']}_{source_index:06d}",
+                "messages": conversation["messages"],
+                "source": source["repo_id"],
+                "source_config": source["source_config"],
+                "source_split": source["source_split"],
+                "source_index": source_index,
+            }
+        )
         if max_per_config is not None and len(rows) >= max_per_config:
             break
-    print(f"Prepared {len(rows):,} rows for {source['config']} after filtering {invalid_count:,} invalid and {duplicate_count:,} duplicate rows")
+    print(
+        f"Prepared {len(rows):,} rows for {source['config']} after filtering {invalid_count:,} invalid and {duplicate_count:,} duplicate rows"
+    )
     return rows
 
 
@@ -200,32 +225,38 @@ def write_dataset(config_rows: dict[str, dict[str, list[dict]]], out_dir: Path) 
         "configs:",
     ]
     for config in config_rows:
-        readme.extend([
-            f"- config_name: {config}",
-            "  data_files:",
-            "  - split: train",
-            f"    path: data/{config}/train-*.parquet",
-            "  - split: validation",
-            f"    path: data/{config}/validation-*.parquet",
-        ])
-    readme.extend([
-        "---",
-        "",
-        "# AMALIA SFT",
-        "",
-        "Standardized European Portuguese supervised fine-tuning data from AMALIA.",
-        "",
-        "Each config has deterministic `train` and `validation` splits and a common `messages` schema.",
-        "",
-        "Exact duplicate and invalid conversations are removed. Source provenance is retained in every row.",
-        "",
-        "## Counts",
-        "",
-        "| Config | Train | Validation |",
-        "|---|---:|---:|",
-    ])
+        readme.extend(
+            [
+                f"- config_name: {config}",
+                "  data_files:",
+                "  - split: train",
+                f"    path: data/{config}/train-*.parquet",
+                "  - split: validation",
+                f"    path: data/{config}/validation-*.parquet",
+            ]
+        )
+    readme.extend(
+        [
+            "---",
+            "",
+            "# AMALIA SFT",
+            "",
+            "Standardized European Portuguese supervised fine-tuning data from AMALIA.",
+            "",
+            "Each config has deterministic `train` and `validation` splits and a common `messages` schema.",
+            "",
+            "Exact duplicate and invalid conversations are removed. Source provenance is retained in every row.",
+            "",
+            "## Counts",
+            "",
+            "| Config | Train | Validation |",
+            "|---|---:|---:|",
+        ]
+    )
     for config, splits in config_rows.items():
-        readme.append(f"| `{config}` | {len(splits['train'])} | {len(splits['validation'])} |")
+        readme.append(
+            f"| `{config}` | {len(splits['train'])} | {len(splits['validation'])} |"
+        )
     readme.append("")
     (out_dir / "README.md").write_text("\n".join(readme), encoding="utf-8")
     print(f"Wrote AMALIA SFT to {out_dir}")

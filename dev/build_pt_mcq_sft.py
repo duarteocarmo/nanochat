@@ -1,15 +1,14 @@
 """Build and optionally publish the canonical European Portuguese MCQ SFT dataset."""
 
 import argparse
-from collections import Counter
 import json
-from pathlib import Path
 import re
+from collections import Counter
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, HfFileSystem
-
 
 REPO_ID = "duarteocarmo/pt-mcq-sft"
 SOURCES = {
@@ -34,7 +33,19 @@ SOURCES = {
 }
 
 
-def canonical_row(*, row_id, question, context, choices, answer, category, source, source_config, source_split, source_id):
+def canonical_row(
+    *,
+    row_id,
+    question,
+    context,
+    choices,
+    answer,
+    category,
+    source,
+    source_config,
+    source_split,
+    source_id,
+):
     return {
         "id": row_id,
         "question": question.strip(),
@@ -65,7 +76,11 @@ def clean(*, rows, expected_choice_count):
     unique = []
     seen = set()
     for row in valid:
-        key = json.dumps([row["question"], row["context"], row["choices"]], ensure_ascii=False, sort_keys=True)
+        key = json.dumps(
+            [row["question"], row["context"], row["choices"]],
+            ensure_ascii=False,
+            sort_keys=True,
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -76,29 +91,33 @@ def clean(*, rows, expected_choice_count):
 def load_mmlu():
     source = SOURCES["mmlu"]
     filesystem = HfFileSystem()
-    pattern = f'datasets/{source["repo"]}@{source["revision"]}/*PT-PT*.jsonl'
+    pattern = f"datasets/{source['repo']}@{source['revision']}/*PT-PT*.jsonl"
     paths = filesystem.glob(pattern)
     rows = []
     for path in paths:
-        match = re.fullmatch(r".*/hendrycks_(.+)_PT-PT_(dev|validation|test)\.jsonl", path)
+        match = re.fullmatch(
+            r".*/hendrycks_(.+)_PT-PT_(dev|validation|test)\.jsonl", path
+        )
         if match is None:
             raise ValueError(f"Unexpected MMLU path: {path}")
         subject, split = match.groups()
         with filesystem.open(path, "r") as source_file:
             for line in source_file:
                 row = json.loads(line)
-                rows.append(canonical_row(
-                    row_id=f'mmlu:{split}:{row["id"]}',
-                    question=row["question"],
-                    context="",
-                    choices=row["choices"],
-                    answer=row["answer"],
-                    category=subject,
-                    source="mmlu",
-                    source_config=f"{subject}_PT-PT",
-                    source_split=split,
-                    source_id=row["id"],
-                ))
+                rows.append(
+                    canonical_row(
+                        row_id=f"mmlu:{split}:{row['id']}",
+                        question=row["question"],
+                        context="",
+                        choices=row["choices"],
+                        answer=row["answer"],
+                        category=subject,
+                        source="mmlu",
+                        source_config=f"{subject}_PT-PT",
+                        source_split=split,
+                        source_id=row["id"],
+                    )
+                )
     return clean(rows=rows, expected_choice_count=4)
 
 
@@ -112,7 +131,7 @@ def load_goldenswag():
     )
     rows = [
         canonical_row(
-            row_id=f'goldenswag:{row["id"]}',
+            row_id=f"goldenswag:{row['id']}",
             question="Qual é a continuação mais plausível para o texto?",
             context=row["ctx"],
             choices=row["endings"],
@@ -138,7 +157,7 @@ def load_boolq():
     )
     rows = [
         canonical_row(
-            row_id=f'boolq:{row["idx"]}',
+            row_id=f"boolq:{row['idx']}",
             question=row["question"],
             context=row["passage"],
             choices=["sim", "não"],
@@ -164,11 +183,11 @@ def validate(*, datasets):
             raise ValueError(f"{name} has duplicate IDs")
         for row in rows:
             if len(row["choices"]) != expected_choice_counts[name]:
-                raise ValueError(f'{row["id"]} has {len(row["choices"])} choices')
+                raise ValueError(f"{row['id']} has {len(row['choices'])} choices")
             if not 0 <= row["answer"] < len(row["choices"]):
-                raise ValueError(f'{row["id"]} has invalid answer {row["answer"]}')
+                raise ValueError(f"{row['id']} has invalid answer {row['answer']}")
             if not row["question"] or any(not choice for choice in row["choices"]):
-                raise ValueError(f'{row["id"]} has empty text')
+                raise ValueError(f"{row['id']} has empty text")
 
 
 def dataset_card(*, datasets):
@@ -177,7 +196,7 @@ def dataset_card(*, datasets):
         name: dict(sorted(Counter(row["answer"] for row in rows).items()))
         for name, rows in datasets.items()
     }
-    return f'''---
+    return f"""---
 language:
 - pt
 task_categories:
@@ -284,7 +303,7 @@ No model-generated content, option permutation, balancing, or oversampling is ad
 ## Licensing and citations
 
 This repository redistributes transformed rows from the sources above. Dataset rights and citation requirements remain with each original source. Review the linked source cards and papers before redistribution or commercial use. The repository uses `license: other` because the collection combines multiple derived datasets.
-'''
+"""
 
 
 def push(*, datasets, repo_id):
@@ -309,7 +328,11 @@ def push(*, datasets, repo_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--push", action="store_true", help="publish the private dataset to Hugging Face")
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="publish the private dataset to Hugging Face",
+    )
     parser.add_argument("--repo-id", default=REPO_ID)
     args = parser.parse_args()
 
@@ -324,7 +347,9 @@ def main():
         print(f"{name}: {len(rows):,} rows, labels={distribution}")
     if args.push:
         push(datasets=datasets, repo_id=args.repo_id)
-        print(f"Published private dataset: https://huggingface.co/datasets/{args.repo_id}")
+        print(
+            f"Published private dataset: https://huggingface.co/datasets/{args.repo_id}"
+        )
 
 
 if __name__ == "__main__":

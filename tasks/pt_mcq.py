@@ -5,7 +5,6 @@ import random
 from tasks.common import Task, load_hub_dataset
 from tasks.pt_common import render_portuguese_mc
 
-
 _REPO_ID = "duarteocarmo/pt-mcq-sft"
 _SUBSETS = {"mmlu", "goldenswag", "boolq"}
 
@@ -19,11 +18,15 @@ class PTMCQ(Task):
             raise ValueError(f"PTMCQ split must be train, got {split}")
         self.subset = subset
         self.permutation_seed = permutation_seed
-        self.ds = list(rows) if rows is not None else load_hub_dataset(
-            repo_id=_REPO_ID,
-            subset=subset,
-            split=split,
-        ).shuffle(seed=42)
+        self.ds = (
+            list(rows)
+            if rows is not None
+            else load_hub_dataset(
+                repo_id=_REPO_ID,
+                subset=subset,
+                split=split,
+            ).shuffle(seed=42)
+        )
         self.length = len(self.ds)
 
     @property
@@ -43,10 +46,10 @@ class PTMCQ(Task):
 
         choices = [source_choices[source_index] for source_index in permutation]
         correct_choice = permutation.index(row["answer"])
-        letters = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[:len(choices)])
+        letters = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[: len(choices)])
         question = row["question"]
         if row["context"]:
-            question = f'Texto: {row["context"]}\n\n{question}'
+            question = f"Texto: {row['context']}\n\n{question}"
 
         return {
             "messages": [
@@ -65,5 +68,5 @@ class PTMCQ(Task):
             "source_id": row["source_id"],
         }
 
-    def evaluate(self, conversation, assistant_response):
+    def evaluate(self, conversation, assistant_response):  # ty: ignore[invalid-method-override]
         return assistant_response == conversation["messages"][-1]["content"]
