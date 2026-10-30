@@ -1,12 +1,11 @@
 """
 Unified evaluation script for base models.
 
-Supports three evaluation modes (comma-separated):
-  --eval core    : PTCORE metric (Portuguese multiple-choice tasks)
-  --eval bpb     : Bits per byte on train/val splits
-  --eval sample  : Generate samples from the model
-
-Default is all three: --eval core,bpb,sample
+Supports four evaluation modes (comma-separated):
+  --eval core     : PTCORE answer-likelihood metric
+  --eval core-gen : Few-shot PTCORE generated-answer metric
+  --eval bpb      : Bits per byte on train/val splits
+  --eval sample   : Generate samples from the model
 
 Examples:
 
@@ -35,6 +34,11 @@ from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit
 from nanochat.engine import Engine
 from nanochat.loss_eval import evaluate_bpb
 from nanochat.ptcore_eval import evaluate_ptcore
+from nanochat.ptcore_generation import (
+    evaluate_ptcore_generation,
+    generation_metrics_for_wandb,
+    save_generation_results,
+)
 from nanochat.tokenizer import get_token_bytes
 
 # -----------------------------------------------------------------------------
@@ -56,7 +60,7 @@ def main():
         "--eval",
         type=str,
         default="core,bpb,sample",
-        help="Comma-separated evaluations to run: core,bpb,sample (default: all)",
+        help="Comma-separated evaluations: core,core-gen,bpb,sample (default: core,bpb,sample)",
     )
     parser.add_argument(
         "--model-tag",
@@ -72,6 +76,18 @@ def main():
         type=int,
         default=-1,
         help="Max examples per PTCORE task (-1 = all)",
+    )
+    parser.add_argument(
+        "--generation-fewshot",
+        type=int,
+        default=3,
+        help="Fixed demonstration questions reserved per task for core-gen",
+    )
+    parser.add_argument(
+        "--generation-max-new-tokens",
+        type=int,
+        default=16,
+        help="Maximum generated answer tokens for core-gen",
     )
     parser.add_argument(
         "--device-batch-size",
@@ -98,10 +114,14 @@ def main():
 
     # Parse evaluation modes
     eval_modes = {mode.strip() for mode in args.eval.split(",")}
-    valid_modes = {"core", "bpb", "sample"}
+    valid_modes = {"core", "core-gen", "bpb", "sample"}
     invalid = eval_modes - valid_modes
     if invalid:
         parser.error(f"Invalid eval modes: {invalid}. Valid: {valid_modes}")
+    if args.generation_fewshot < 0 or args.generation_max_new_tokens < 1:
+        parser.error(
+            "Generation requires non-negative fewshot and positive max-new-tokens"
+        )
 
     # Distributed / precision setup
     device_type = (
@@ -113,7 +133,6 @@ def main():
         "base", device, phase="eval", model_tag=args.model_tag, step=args.step
     )
     sequence_len = meta["model_config"]["sequence_len"]
-    token_bytes = get_token_bytes(device=device)
     model_name = f"base_model (step {meta['step']})"
     model_slug = f"base_model_{meta['step']:06d}"
 
@@ -180,6 +199,7 @@ def main():
 
     # --- BPB evaluation ---
     if "bpb" in eval_modes:
+        token_bytes = get_token_bytes(device=device)
         print0("\n" + "=" * 80)
         print0("BPB Evaluation")
         print0("=" * 80)
@@ -204,7 +224,7 @@ def main():
             print0(f"{split_name} bpb: {bpb:.6f}")
 
     # --- PTCORE evaluation ---
-    output_csv_path = None
+    output_paths = []
     if "core" in eval_modes:
         print0("\n" + "=" * 80)
         print0("PTCORE Evaluation")
@@ -228,8 +248,51 @@ def main():
                 f.write(
                     f"{'PTCORE':<35}, {'':<10}, {core_results['core_metric']:<10.6f}\n"
                 )
+            output_paths.append(output_csv_path)
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"PTCORE metric: {core_results['core_metric']:.4f}")
+
+    if "core-gen" in eval_modes:
+        print0("\n" + "=" * 80)
+        print0("PTCORE Generation Evaluation")
+        print0("=" * 80)
+        generation_results = evaluate_ptcore_generation(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            max_per_task=args.max_per_task,
+            num_fewshot=args.generation_fewshot,
+            max_new_tokens=args.generation_max_new_tokens,
+        )
+        if ddp_rank == 0:
+            output_name = args.model_tag or model_slug
+            output_prefix = os.path.join(
+                get_base_dir(), "base_eval", f"{output_name}_generation"
+            )
+            output_paths.extend(
+                save_generation_results(
+                    results={
+                        "model_tag": args.model_tag,
+                        "step": meta["step"],
+                        **generation_results,
+                    },
+                    output_prefix=output_prefix,
+                )
+            )
+            print0(
+                f"PTCORE generation metric: {generation_results['generation_metric']:.4f}"
+            )
+            print0(
+                f"PTCORE generation invalid rate: {generation_results['invalid_rate']:.4f}"
+            )
+            print0(f"Results written to: {output_prefix}.json and {output_prefix}.csv")
+            if not use_dummy_wandb:
+                wandb_run.log(
+                    data={
+                        "step": meta["step"],
+                        **generation_metrics_for_wandb(results=generation_results),
+                    }
+                )
 
     if ddp_rank == 0 and not use_dummy_wandb and conditioned_samples:
         wandb_run.log(
@@ -245,9 +308,10 @@ def main():
             }
         )
 
-    if ddp_rank == 0 and not use_dummy_wandb and output_csv_path:
+    if ddp_rank == 0 and not use_dummy_wandb and output_paths:
         artifact = wandb.Artifact(f"{model_slug}_base_eval", type="eval")
-        artifact.add_file(output_csv_path)
+        for path in output_paths:
+            artifact.add_file(local_path=path)
         wandb_run.log_artifact(artifact)  # ty: ignore[unresolved-attribute]
 
     wandb_run.finish()
