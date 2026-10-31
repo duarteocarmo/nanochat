@@ -20,7 +20,6 @@ import argparse
 import os
 
 import wandb
-
 from nanochat.checkpoint_manager import load_model
 from nanochat.common import (
     DummyWandb,
@@ -299,7 +298,8 @@ def main():
             {
                 "step": meta["step"],
                 "samples/conditioned": wandb.Table(
-                    columns=["prompt", "sample"], data=conditioned_samples
+                    columns=["prompt", "sample"],
+                    data=[list(row) for row in conditioned_samples],
                 ),
                 "samples/unconditioned": wandb.Table(
                     columns=["index", "sample"],

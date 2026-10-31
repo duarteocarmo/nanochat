@@ -1,12 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-MODEL_TAG="${MODEL_TAG:-gb10_d6}"
-STEPS="${STEPS:-128}"
-DEVICE_BATCH_SIZE=8
-SEQ_LEN=512
-TOTAL_BATCH_SIZE=16384
-EVAL_TOKENS=8192
+MODEL_TAG="${MODEL_TAG:-gb10_d6_30min}"
+WANDB_RUN="${WANDB_RUN:-dummy}"
+STEPS="${STEPS:-1200}"
+DEVICE_BATCH_SIZE=32
+SEQ_LEN=2048
+TOTAL_BATCH_SIZE=65536
+EVAL_TOKENS=1048576
 CORE_MAX_PER_TASK=4
 NPROC_PER_NODE=1
 
@@ -38,14 +39,15 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m -- scripts.base_trai
     --max-seq-len="$SEQ_LEN" \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
     --total-batch-size="$TOTAL_BATCH_SIZE" \
-    --num-iterations="$STEPS" --warmup-steps=4 \
+    --num-iterations="$STEPS" --warmup-steps=40 \
     --seed=42 --data-seed=42 \
-    --eval-every="$STEPS" --eval-tokens="$EVAL_TOKENS" \
+    --eval-every=400 --eval-tokens="$EVAL_TOKENS" \
     --core-metric-every=-1 --sample-every=-1 --save-every=-1 \
-    --run=dummy
+    --run="$WANDB_RUN"
 
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m -- scripts.base_eval \
     --device-type=cuda --model-tag="$MODEL_TAG" --step="$STEPS" \
     --eval=bpb,core,core-gen,sample \
     --device-batch-size="$DEVICE_BATCH_SIZE" \
-    --split-tokens="$EVAL_TOKENS" --max-per-task="$CORE_MAX_PER_TASK"
+    --split-tokens="$EVAL_TOKENS" --max-per-task="$CORE_MAX_PER_TASK" \
+    --run="$WANDB_RUN"
