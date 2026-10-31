@@ -9,6 +9,8 @@ Adapted from: https://github.com/KellerJordan/modded-nanogpt
 Further contributions from @karpathy and @chrisjmccormick.
 """
 
+import os
+
 import torch
 import torch.distributed as dist
 from torch import Tensor
@@ -22,7 +24,11 @@ https://arxiv.org/abs/1711.05101
 """
 
 
-@torch.compile(dynamic=False, fullgraph=True)
+@torch.compile(
+    dynamic=False,
+    fullgraph=True,
+    disable=os.environ.get("TORCH_COMPILE_DISABLE") == "1",
+)
 def adamw_step_fused(
     p: Tensor,  # (32768, 768) - parameter tensor
     grad: Tensor,  # (32768, 768) - gradient, same shape as p
@@ -111,7 +117,11 @@ polar_express_coeffs = [
 ]
 
 
-@torch.compile(dynamic=False, fullgraph=True)
+@torch.compile(
+    dynamic=False,
+    fullgraph=True,
+    disable=os.environ.get("TORCH_COMPILE_DISABLE") == "1",
+)
 def muon_step_fused(
     stacked_grads: Tensor,  # (12, 768, 3072) - stacked gradients
     stacked_params: Tensor,  # (12, 768, 3072) - stacked parameters
@@ -300,9 +310,11 @@ class MuonAdamW(torch.optim.Optimizer):
                 )
                 rank_size = grad.shape[0] // world_size
                 grad_slice = torch.empty_like(grad[:rank_size])
-                future = dist.reduce_scatter_tensor(
+                work = dist.reduce_scatter_tensor(
                     grad_slice, grad, op=dist.ReduceOp.AVG, async_op=True
-                ).get_future()
+                )
+                assert work is not None
+                future = work.get_future()
                 param_infos[p] = dict(  # noqa: C408
                     future=future, grad_slice=grad_slice, is_small=False
                 )
@@ -336,9 +348,11 @@ class MuonAdamW(torch.optim.Optimizer):
 
         # Reduce_scatter to get this rank's chunk
         grad_chunk = torch.empty(chunk_size, *shape, dtype=dtype, device=device)
-        future = dist.reduce_scatter_tensor(
+        work = dist.reduce_scatter_tensor(
             grad_chunk, stacked_grads, op=dist.ReduceOp.AVG, async_op=True
-        ).get_future()
+        )
+        assert work is not None
+        future = work.get_future()
 
         return dict(  # noqa: C408
             future=future,
@@ -395,9 +409,9 @@ class MuonAdamW(torch.optim.Optimizer):
 
             # Large params need all_gather
             if not pinfo["is_small"]:
-                future = dist.all_gather_into_tensor(
-                    p, p_slice, async_op=True
-                ).get_future()
+                work = dist.all_gather_into_tensor(p, p_slice, async_op=True)
+                assert work is not None
+                future = work.get_future()
                 gather_list.append(dict(future=future, params=None))  # noqa: C408
 
     def _compute_muon(
@@ -472,9 +486,11 @@ class MuonAdamW(torch.optim.Optimizer):
 
         # Reuse stacked_grads buffer for all_gather output
         stacked_params = info["stacked_grads"]
-        future = dist.all_gather_into_tensor(
+        work = dist.all_gather_into_tensor(
             stacked_params, updated_params, async_op=True
-        ).get_future()
+        )
+        assert work is not None
+        future = work.get_future()
         gather_list.append(
             dict(future=future, stacked_params=stacked_params, params=params)  # noqa: C408
         )

@@ -2,6 +2,11 @@
 - make a table when looking for machine that informs user (location, type, cost)
 - when renting on Vast.ai, use the recommended `PyTorch (Vast)` template instead of launching directly from a CUDA image, unless the user asks otherwise
 - make the changes locally - but ask before commiting or pushing
+- Make only the minimal changes necessary for the request. Avoid unrelated cleanup or refactoring.
+- Always run `make format` and `make check` after changes. Fix any failures before finishing.
+- Do not update README files unless explicitly asked.
+- Do not add GB10-specific comments to nanochat/dataset.py. Keep machine-specific details in the run script.
+- You may write tests during implementation, but remove tests you added before finishing unless I explicitly ask to keep them.
 
 
 

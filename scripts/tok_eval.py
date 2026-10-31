@@ -2,7 +2,7 @@
 Evaluate compression ratio of the tokenizer.
 """
 
-from nanochat.dataset import parquets_iter_batched
+from nanochat.dataset import DATASET, parquets_iter_batched
 from nanochat.tokenizer import RustBPETokenizer, get_tokenizer
 
 # Random text I got from a random website this morning
@@ -160,10 +160,10 @@ all_text = [
     ("code", code_text),
     ("math", math_text),
     ("science", science_text),
-    ("bagaco2-train", train_text),
+    (f"{DATASET}-train", train_text),
 ]
 if val_text:
-    all_text.append(("bagaco2-val", val_text))
+    all_text.append((f"{DATASET}-val", val_text))
 
 # Try out current default compared to GPT-2 and GPT-4 tokenizers
 tokenizer_results = {}

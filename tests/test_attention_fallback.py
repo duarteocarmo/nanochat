@@ -48,6 +48,47 @@ def assert_close(t1, t2, name, atol=1e-2, rtol=1e-2):
     return max_diff, mean_diff
 
 
+class TestFA3Detection:
+    @pytest.mark.parametrize("capability", [(10, 0), (12, 0), (12, 1), (13, 0)])
+    def test_unsupported_gpu_skips_kernel_loading(self, monkeypatch, capability):
+        import kernels
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "get_device_capability", lambda: capability)
+
+        def unexpected_kernel_lookup(*args, **kwargs):
+            raise AssertionError("Unsupported GPU must not load an FA3 kernel")
+
+        monkeypatch.setattr(kernels, "has_kernel", unexpected_kernel_lookup)
+        monkeypatch.setattr(kernels, "get_kernel", unexpected_kernel_lookup)
+        assert fa_module._load_flash_attention_3() is None
+
+    @pytest.mark.parametrize("capability", [(8, 0), (8, 6), (8, 9), (9, 0)])
+    def test_supported_gpu_loads_kernel(self, monkeypatch, capability):
+        from types import SimpleNamespace
+
+        import kernels
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "get_device_capability", lambda: capability)
+        interface = object()
+        requested = []
+
+        def get_kernel(name):
+            requested.append(name)
+            return SimpleNamespace(flash_attn_interface=interface)
+
+        monkeypatch.setattr(kernels, "has_kernel", lambda name: True)
+        monkeypatch.setattr(kernels, "get_kernel", get_kernel)
+        assert fa_module._load_flash_attention_3() is interface
+        expected = (
+            "varunneal/flash-attention-3"
+            if capability[0] == 9
+            else "kernels-community/flash-attn3"
+        )
+        assert requested == [expected]
+
+
 # =============================================================================
 # FA3 vs SDPA comparison tests
 # =============================================================================

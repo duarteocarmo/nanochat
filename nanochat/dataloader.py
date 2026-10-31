@@ -51,19 +51,18 @@ def _document_batches(
     where text_batch is a list of document strings, indices track position for resumption,
     and epoch counts how many times we've cycled through the dataset (starts at 1).
     """
-    if minimum_educational_score not in {-1, 0, 1, 2, 3, 4}:
-        raise ValueError("minimum_educational_score must be -1 or between 0 and 4")
+    if minimum_educational_score not in {-1, 0, 1, 2, 3, 4, 5}:
+        raise ValueError("minimum_educational_score must be -1 or between 0 and 5")
 
     _, ddp_rank, _, ddp_world_size = get_dist_info()
 
     warn_on_legacy = (
         ddp_rank == 0 and split == "train"
     )  # rank 0 on train split will warn on legacy
-    parquet_paths = list_parquet_files(warn_on_legacy=warn_on_legacy)
+    parquet_paths = list_parquet_files(split=split, warn_on_legacy=warn_on_legacy)
     assert len(parquet_paths) != 0, (
         "No dataset parquet files found, did you run dataset.py?"
     )
-    parquet_paths = parquet_paths[:-1] if split == "train" else parquet_paths[-1:]
     if split == "train" and data_seed != -1:
         random.Random(data_seed).shuffle(parquet_paths)
 

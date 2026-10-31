@@ -4,7 +4,8 @@ This file contains utilities for:
 - iterating over the parquet files and yielding documents from it
 - download the files on demand if they are not on disk
 
-For details of how the dataset was prepared, see `repackage_data_reference.py`.
+For Bagaço3 preparation details, see `dev/prepare_bagaco3.py`.
+Set NANOCHAT_DATASET=bagaco3 to use the Bagaço3 pretraining corpus.
 """
 
 import argparse
@@ -20,29 +21,53 @@ from nanochat.common import get_base_dir
 # -----------------------------------------------------------------------------
 # The specifics of the current pretraining dataset
 
-# The URL on the internet where the data is hosted and downloaded from on demand
-BASE_URL = (
-    "https://huggingface.co/datasets/duarteocarmo/bagaco2-30b-shuffle/resolve/main"
+DATASET = os.environ.get("NANOCHAT_DATASET", "bagaco2")
+if DATASET not in {"bagaco2", "bagaco3"}:
+    raise ValueError("NANOCHAT_DATASET must be 'bagaco2' or 'bagaco3'")
+
+DATASET_REPO = (
+    "duarteocarmo/bagaco3-shuffle"
+    if DATASET == "bagaco3"
+    else "duarteocarmo/bagaco2-30b-shuffle"
 )
-MAX_SHARD = 359  # the last datashard is shard_00359.parquet
-index_to_filename = lambda index: (
-    f"shard_{index:05d}.parquet"
-)  # format of the filenames
+DATASET_REVISION = (
+    "f41c9c2fe971836585f07e414f81499a580b032a" if DATASET == "bagaco3" else "main"
+)
+BASE_URL = f"https://huggingface.co/datasets/{DATASET_REPO}/resolve/{DATASET_REVISION}"
+MAX_SHARD = 498 if DATASET == "bagaco3" else 359
+
+
+def index_to_filename(index):
+    filename = f"shard_{index:05d}.parquet"
+    if DATASET == "bagaco3":
+        return (
+            f"train/{filename}"
+            if index < MAX_SHARD
+            else "validation/shard_00000.parquet"
+        )
+    return filename
+
+
 base_dir = get_base_dir()
-DATA_DIR = os.path.join(base_dir, "base_data_bagaco2")
+DATA_DIR = os.environ.get(
+    "NANOCHAT_DATA_DIR", os.path.join(base_dir, f"base_data_{DATASET}")
+)
 
 # -----------------------------------------------------------------------------
 # These functions are useful utilities to other modules, can/should be imported
 
 
-def list_parquet_files(data_dir=None, warn_on_legacy=False):
+def list_parquet_files(data_dir=None, warn_on_legacy=False, split=None):
     """Looks into a data dir and returns full paths to all parquet files."""
     data_dir = DATA_DIR if data_dir is None else data_dir
+    if DATASET == "bagaco3":
+        assert split in ["train", "val"], "split must be 'train' or 'val'"
+        data_dir = os.path.join(data_dir, "train" if split == "train" else "validation")
 
     if not os.path.exists(data_dir):
         raise FileNotFoundError(
-            f"Could not find {data_dir}. Download Bagaço2 shards with: "
-            "python -m nanochat.dataset -n 170"
+            f"Could not find {data_dir}. Download {DATASET} shards with: "
+            f"NANOCHAT_DATASET={DATASET} python -m nanochat.dataset -n 170"
         )
 
     parquet_files = sorted(
@@ -53,18 +78,19 @@ def list_parquet_files(data_dir=None, warn_on_legacy=False):
         ]
     )
     parquet_paths = [os.path.join(data_dir, f) for f in parquet_files]
+    if DATASET == "bagaco2" and split is not None:
+        parquet_paths = parquet_paths[:-1] if split == "train" else parquet_paths[-1:]
     return parquet_paths
 
 
 def parquets_iter_batched(split, start=0, step=1):
     """
     Iterate through the dataset, in batches of underlying row_groups for efficiency.
-    - split can be "train" or "val". the last parquet file will be val.
+    - split can be "train" or "val". Validation uses a dedicated held-out split.
     - start/step are useful for skipping rows in DDP. e.g. start=rank, step=world_size
     """
     assert split in ["train", "val"], "split must be 'train' or 'val'"
-    parquet_paths = list_parquet_files()
-    parquet_paths = parquet_paths[:-1] if split == "train" else parquet_paths[-1:]
+    parquet_paths = list_parquet_files(split=split)
     for filepath in parquet_paths:
         pf = pq.ParquetFile(filepath)
         for rg_idx in range(start, pf.num_row_groups, step):
@@ -80,6 +106,7 @@ def download_single_file(index):
     # Construct the local filepath for this file and skip if it already exists
     filename = index_to_filename(index)
     filepath = os.path.join(DATA_DIR, filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     if os.path.exists(filepath):
         print(f"Skipping {filepath} (already exists)")
         return True

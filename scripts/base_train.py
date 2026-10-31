@@ -104,7 +104,7 @@ parser.add_argument(
     "--min-educational-score",
     type=int,
     default=-1,
-    choices=[-1, 0, 1, 2, 3, 4],
+    choices=[-1, 0, 1, 2, 3, 4, 5],
     help="minimum educational score to train on (-1 = no filter)",
 )
 parser.add_argument(
