@@ -141,3 +141,12 @@ def evaluate_ptcore(
         "centered_results": centered_results,
         "core_metric": core_metric,
     }
+
+
+def ptcore_metrics_for_wandb(results: dict) -> dict:
+    metrics = {"eval_ptcore/metric": results["core_metric"]}
+    for task, accuracy in results["results"].items():
+        metrics[f"eval_ptcore/accuracy/{task}"] = accuracy
+    for task, score in results["centered_results"].items():
+        metrics[f"eval_ptcore/centered/{task}"] = score
+    return metrics

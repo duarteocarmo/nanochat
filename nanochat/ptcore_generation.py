@@ -265,10 +265,10 @@ def save_generation_results(results: dict, output_prefix: str) -> list[str]:
 
 def generation_metrics_for_wandb(results: dict) -> dict:
     metrics = {
-        "ptcore_generation/metric": results["generation_metric"],
-        "ptcore_generation/invalid_rate": results["invalid_rate"],
+        "eval_ptcore_generation/metric": results["generation_metric"],
+        "eval_ptcore_generation/invalid_rate": results["invalid_rate"],
     }
     for task_name, result in results["tasks"].items():
         for metric in ("accuracy", "invalid_rate"):
-            metrics[f"ptcore_generation/{task_name}/{metric}"] = result[metric]
+            metrics[f"eval_ptcore_generation/{task_name}/{metric}"] = result[metric]
     return metrics

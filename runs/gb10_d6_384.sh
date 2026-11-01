@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-MODEL_TAG="${MODEL_TAG:-gb10_d6_30min}"
-WANDB_RUN="${WANDB_RUN:-dummy}"
-STEPS="${STEPS:-1200}"
+MODEL_TAG="${1:?Usage: $0 EXPERIMENT_NAME}"
+WANDB_RUN="$MODEL_TAG"
+STEPS="${STEPS:-2400}"
 DEVICE_BATCH_SIZE=32
 SEQ_LEN=2048
 TOTAL_BATCH_SIZE=65536
 EVAL_TOKENS=1048576
-CORE_MAX_PER_TASK=4
+CORE_MAX_PER_TASK=-1
 NPROC_PER_NODE=1
 
 export OMP_NUM_THREADS=1
@@ -43,7 +43,7 @@ torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m -- scripts.base_trai
     --seed=42 --data-seed=42 \
     --eval-every=400 --eval-tokens="$EVAL_TOKENS" \
     --core-metric-every=-1 --sample-every=-1 --save-every=-1 \
-    --run="$WANDB_RUN"
+    --wandb-project=ginja --run="$WANDB_RUN"
 
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m -- scripts.base_eval \
     --device-type=cuda --model-tag="$MODEL_TAG" --step="$STEPS" \

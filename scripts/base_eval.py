@@ -32,7 +32,7 @@ from nanochat.common import (
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit
 from nanochat.engine import Engine
 from nanochat.loss_eval import evaluate_bpb
-from nanochat.ptcore_eval import evaluate_ptcore
+from nanochat.ptcore_eval import evaluate_ptcore, ptcore_metrics_for_wandb
 from nanochat.ptcore_generation import (
     evaluate_ptcore_generation,
     generation_metrics_for_wandb,
@@ -148,12 +148,16 @@ def main():
         DummyWandb()
         if use_dummy_wandb
         else wandb.init(
-            project="ginjinha",
+            project=meta.get("user_config", {}).get("wandb_project", "ginjinha"),
             id=wandb_run_id,
             resume="must",
             settings=wandb.Settings(x_disable_stats=True),
         )
     )
+
+    if not isinstance(wandb_run, DummyWandb):
+        wandb_run.define_metric("*", step_metric="step")
+        wandb_run.define_metric("step", hidden=True)
 
     conditioned_samples = []
     unconditioned_samples = []
@@ -221,6 +225,8 @@ def main():
             )
             bpb = evaluate_bpb(model, loader, steps, token_bytes)
             print0(f"{split_name} bpb: {bpb:.6f}")
+            if not use_dummy_wandb:
+                wandb_run.log({"step": meta["step"], f"eval_bpb/{split_name}": bpb})
 
     # --- PTCORE evaluation ---
     output_paths = []
@@ -250,6 +256,13 @@ def main():
             output_paths.append(output_csv_path)
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"PTCORE metric: {core_results['core_metric']:.4f}")
+            if not use_dummy_wandb:
+                wandb_run.log(
+                    {
+                        "step": meta["step"],
+                        **ptcore_metrics_for_wandb(results=core_results),
+                    }
+                )
 
     if "core-gen" in eval_modes:
         print0("\n" + "=" * 80)
@@ -297,11 +310,11 @@ def main():
         wandb_run.log(
             {
                 "step": meta["step"],
-                "samples/conditioned": wandb.Table(
+                "eval_samples/conditioned": wandb.Table(
                     columns=["prompt", "sample"],
                     data=[list(row) for row in conditioned_samples],
                 ),
-                "samples/unconditioned": wandb.Table(
+                "eval_samples/unconditioned": wandb.Table(
                     columns=["index", "sample"],
                     data=list(enumerate(unconditioned_samples)),
                 ),

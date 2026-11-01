@@ -24,8 +24,8 @@ from dataclasses import asdict
 
 import torch
 import torch.distributed as dist
-import wandb
 
+import wandb
 from nanochat.checkpoint_manager import load_checkpoint, save_checkpoint
 from nanochat.common import (
     COMPUTE_DTYPE,
@@ -48,6 +48,7 @@ from nanochat.engine import Engine
 from nanochat.flash_attention import HAS_FA3
 from nanochat.gpt import GPT, GPTConfig, Linear
 from nanochat.loss_eval import evaluate_bpb
+from nanochat.ptcore_eval import ptcore_metrics_for_wandb
 from nanochat.tokenizer import get_token_bytes, get_tokenizer
 from scripts.base_eval import evaluate_core
 
@@ -271,6 +272,10 @@ wandb_run = (
         config=user_config,
     )
 )
+
+if not isinstance(wandb_run, DummyWandb):
+    wandb_run.define_metric("*", step_metric="step")
+    wandb_run.define_metric("step", hidden=True)
 
 # Flash Attention status
 from nanochat.flash_attention import USE_FA3
@@ -693,9 +698,10 @@ while True:
         wandb_run.log(
             {
                 "step": step,
-                "train/total_training_flops": flops_so_far,
-                "train/total_training_time": total_training_time,
-                "val/bpb": val_bpb,
+                "progress/total_training_flops": flops_so_far,
+                "progress/total_training_time": total_training_time,
+                "progress/tokens_seen": step * total_batch_size,
+                "eval_bpb/val": val_bpb,
             }
         )
         model.train()
@@ -718,18 +724,10 @@ while True:
         print0(f"Step {step:05d} | PTCORE metric: {results['core_metric']:.4f}")
         core_log_data = {
             "step": step,
-            "train/total_training_flops": flops_so_far,
-            "core/metric": results["core_metric"],
+            "progress/total_training_flops": flops_so_far,
+            "progress/tokens_seen": step * total_batch_size,
+            **ptcore_metrics_for_wandb(results=results),
         }
-        core_log_data.update(
-            {f"core/accuracy/{key}": value for key, value in results["results"].items()}
-        )
-        core_log_data.update(
-            {
-                f"core/centered/{key}": value
-                for key, value in results["centered_results"].items()
-            }
-        )
         wandb_run.log(core_log_data)
         model.train()
 
@@ -868,18 +866,21 @@ while True:
     print0(
         f"step {step:05d}/{num_iterations:05d} ({pct_done:.2f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt * 1000:.2f}ms | tok/sec: {tok_per_sec:,} | bf16_mfu: {mfu:.2f} | epoch: {epoch} | total time: {total_training_time / 60:.2f}m{eta_str}"
     )
-    if step % 100 == 0:
+    if step % 100 == 0 or step + 1 == num_iterations:
+        tokens_seen = (step + 1) * total_batch_size
         log_data = {
-            "step": step,
-            "train/total_training_flops": flops_so_far,
-            "train/total_training_time": total_training_time,
+            "step": step + 1,
+            "progress/total_training_flops": num_flops_per_token * tokens_seen,
+            "progress/total_training_time": total_training_time,
+            "progress/tokens_seen": tokens_seen,
+            "progress/data_position": epoch,
             "train/loss": debiased_smooth_loss,
             "train/lr_multiplier": lrm,
-            "train/dt": dt,
-            "train/tok_per_sec": tok_per_sec,
-            "train/mfu": mfu,
-            "train/epoch": epoch,
+            "perf/dt": dt,
+            "perf/tok_per_sec": tok_per_sec,
         }
+        if math.isfinite(gpu_peak_flops):
+            log_data["perf/mfu"] = mfu
         wandb_run.log(log_data)
 
     # state update
